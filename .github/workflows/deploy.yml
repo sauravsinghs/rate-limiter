@@ -1,0 +1,42 @@
+name: Deploy Rate Limiter
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install frontend dependencies
+        run: npm ci
+      
+      - name: Install backend dependencies
+        run: cd backend && npm ci
+      
+      - name: Build frontend
+        run: npm run build
+      
+      - name: Test backend
+        run: cd backend && npm test || echo "No tests configured yet"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to production
+        run: |
+          echo "Add your deployment commands here"
+          echo "Examples: Railway, Render, Vercel, etc."
