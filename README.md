@@ -1,4 +1,4 @@
-# Rate Limiter Project
+# Rate Limiter
 
 Frontend + backend starter for a token bucket rate limiter.
 
