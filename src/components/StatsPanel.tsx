@@ -32,7 +32,7 @@ export function StatsPanel({
     <div className="stats-panel">
       {/* Success Rate - Featured */}
       <div className="stat-card stat-featured">
-        <div className="stat-label">Success Rate</div>
+        <div className="stat-label">Overall Success Rate</div>
         <div className={`stat-value stat-${getSuccessRateColor()}`}>
           {successRate}
         </div>

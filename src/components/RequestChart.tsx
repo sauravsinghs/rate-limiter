@@ -216,7 +216,7 @@ export function RequestChart({ history, maxPoints = 20 }: RequestChartProps) {
         </div>
         <div className="chart-rate">
           <span className="rate-value">{stats.successRate}%</span>
-          <span className="rate-label">success rate</span>
+          <span className="rate-label">recent {maxPoints}</span>
         </div>
       </div>
 

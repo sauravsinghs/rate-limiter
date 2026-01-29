@@ -3,18 +3,18 @@
  * Manages state and polling for real-time visualization
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    getBucketStats,
-    getRequestStats,
-    resetStats,
-    sendTestRequest,
-    updateBucketConfig,
-    type BucketStats,
-    type RateLimitError,
-    type RequestStats,
-    type TestResponse
-} from '../services/api';
+  getBucketStats,
+  getRequestStats,
+  resetStats,
+  sendTestRequest,
+  updateBucketConfig,
+  type BucketStats,
+  type RateLimitError,
+  type RequestStats,
+  type TestResponse,
+} from "../services/api";
 
 interface UseRateLimiterOptions {
   pollInterval?: number; // milliseconds
@@ -28,7 +28,9 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
   const [requestStats, setRequestStats] = useState<RequestStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastResponse, setLastResponse] = useState<TestResponse | RateLimitError | null>(null);
+  const [lastResponse, setLastResponse] = useState<
+    TestResponse | RateLimitError | null
+  >(null);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -39,7 +41,9 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
       setBucketStats(stats);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch bucket stats');
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch bucket stats",
+      );
     }
   }, []);
 
@@ -50,7 +54,9 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
       setRequestStats(stats);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch request stats');
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch request stats",
+      );
     }
   }, [historyLimit]);
 
@@ -58,21 +64,22 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
   const sendRequest = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const response = await sendTestRequest();
       setLastResponse(response);
-      
+
       // Immediately refresh stats after request
       await Promise.all([fetchBucketStats(), fetchRequestStats()]);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to send request';
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to send request";
       setError(errorMessage);
       setLastResponse({
         success: false,
         message: errorMessage,
         retryAfter: 0,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     } finally {
       setIsLoading(false);
@@ -80,30 +87,39 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
   }, [fetchBucketStats, fetchRequestStats]);
 
   // Send multiple requests (burst simulation)
-  const sendBurst = useCallback(async (count: number = 10, delay: number = 50) => {
-    setIsLoading(true);
-    setError(null);
+  const sendBurst = useCallback(
+    async (count: number = 10, delay: number = 50) => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const promises = Array.from({ length: count }, (_, i) =>
-        new Promise<void>((resolve) => {
-          setTimeout(async () => {
-            await sendTestRequest();
-            resolve();
-          }, i * delay);
-        })
-      );
+      try {
+        // Send requests sequentially with delay, tracking each response
+        for (let i = 0; i < count; i++) {
+          if (i > 0) {
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+          const response = await sendTestRequest();
+          setLastResponse(response); // Update after each request
+        }
 
-      await Promise.all(promises);
-      
-      // Refresh stats after burst
-      await Promise.all([fetchBucketStats(), fetchRequestStats()]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send burst');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fetchBucketStats, fetchRequestStats]);
+        // Refresh stats after burst
+        await Promise.all([fetchBucketStats(), fetchRequestStats()]);
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to send burst";
+        setError(errorMessage);
+        setLastResponse({
+          success: false,
+          message: errorMessage,
+          retryAfter: 0,
+          timestamp: Date.now(),
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchBucketStats, fetchRequestStats],
+  );
 
   // Reset stats
   const reset = useCallback(async () => {
@@ -113,20 +129,25 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
       setLastResponse(null);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset');
+      setError(err instanceof Error ? err.message : "Failed to reset");
     }
   }, [fetchBucketStats, fetchRequestStats]);
 
   // Update bucket config
-  const updateConfig = useCallback(async (config: { capacity?: number; refillRate?: number }) => {
-    try {
-      await updateBucketConfig(config);
-      await fetchBucketStats();
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update config');
-    }
-  }, [fetchBucketStats]);
+  const updateConfig = useCallback(
+    async (config: { capacity?: number; refillRate?: number }) => {
+      try {
+        await updateBucketConfig(config);
+        await fetchBucketStats();
+        setError(null);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to update config",
+        );
+      }
+    },
+    [fetchBucketStats],
+  );
 
   // Start polling
   const startPolling = useCallback(() => {
@@ -166,6 +187,6 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
     updateConfig,
     refresh: () => Promise.all([fetchBucketStats(), fetchRequestStats()]),
     startPolling,
-    stopPolling
+    stopPolling,
   };
 }
