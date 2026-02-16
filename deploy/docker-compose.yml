@@ -1,17 +1,20 @@
+# deploy/docker-compose.yml
+# Alternative compose file for deployment (same as root, kept for backwards compat)
+# Usage:  cd deploy && docker-compose up --build
+# Or from root:  docker-compose up --build
+
 version: '3.8'
 
 services:
-  # ── Redis (optional, for distributed rate-limiting demo) ──
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
     restart: unless-stopped
 
-  # ── Backend API (port 4000) ──
   backend:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: backend-runner
     ports:
@@ -26,16 +29,10 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # ── Frontend (port 3000) ──
   frontend:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: frontend-runner
     ports:
