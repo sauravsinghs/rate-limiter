@@ -2,6 +2,7 @@
  * RideDashboardPage — Page 2
  * Dual algorithm comparison: Token Bucket vs Sliding Window
  * Both process the same requests in parallel, displayed side-by-side
+ * Includes full request log showing every request result
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,7 +12,7 @@ import WindowView from "../components/WindowView";
 import RequestChart from "../components/RequestChart";
 import StatsPanel from "../components/StatsPanel";
 import { useRateLimiter } from "../hooks/useRateLimiter";
-import { resetAllStats } from "../services/api";
+import { resetAllStats, sendTestRequest } from "../services/api";
 
 interface RideState {
     pickup: string;
@@ -20,6 +21,13 @@ interface RideState {
     farePerRide: number;
     distance: string;
     skipProcessing?: boolean;
+}
+
+interface RequestLogEntry {
+    id: number;
+    tbResult: boolean | null;  // null = pending
+    swResult: boolean | null;
+    timestamp: number;
 }
 
 export default function RideDashboardPage() {
@@ -33,6 +41,8 @@ export default function RideDashboardPage() {
 
     const [hasProcessed, setHasProcessed] = useState(rideState?.skipProcessing ?? false);
     const [processingProgress, setProcessingProgress] = useState(rideState?.skipProcessing ? 100 : 0);
+    const [requestLog, setRequestLog] = useState<RequestLogEntry[]>([]);
+    const [showLog, setShowLog] = useState(false);
     const processedRef = useRef(rideState?.skipProcessing ?? false);
 
     // Redirect if no ride state
@@ -51,29 +61,52 @@ export default function RideDashboardPage() {
         await resetAllStats();
 
         const totalRides = rideState.rideCount;
-        const progressTimer = setInterval(() => {
-            setProcessingProgress((prev) => {
-                if (prev >= 100) {
-                    clearInterval(progressTimer);
-                    return 100;
-                }
-                return prev + 100 / (totalRides * 2);
+
+        // Initialize log entries
+        const initialLog: RequestLogEntry[] = Array.from({ length: totalRides }, (_, i) => ({
+            id: i + 1,
+            tbResult: null,
+            swResult: null,
+            timestamp: 0,
+        }));
+        setRequestLog(initialLog);
+
+        // Send requests one by one, updating both algorithms in parallel per request
+        for (let i = 0; i < totalRides; i++) {
+            if (i > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 200));
+            }
+
+            // Send to both algorithms simultaneously
+            const [tbResponse, swResponse] = await Promise.all([
+                sendTestRequest('token-bucket'),
+                sendTestRequest('sliding-window'),
+            ]);
+
+            // Update log entry
+            setRequestLog((prev) => {
+                const updated = [...prev];
+                updated[i] = {
+                    ...updated[i],
+                    tbResult: tbResponse.success,
+                    swResult: swResponse.success,
+                    timestamp: Date.now(),
+                };
+                return updated;
             });
-        }, 50);
 
-        // Fire both algorithms in parallel on the same count
-        await Promise.all([
-            tokenBucket.sendBurst(totalRides, 200),
-            slidingWindow.sendBurst(totalRides, 200),
-        ]);
+            setProcessingProgress(((i + 1) / totalRides) * 100);
+        }
 
-        clearInterval(progressTimer);
+        // Refresh stats for both
+        await Promise.all([tokenBucket.refresh(), slidingWindow.refresh()]);
+
         setProcessingProgress(100);
-
         setTimeout(() => {
             setHasProcessed(true);
+            setShowLog(true);
         }, 500);
-    }, [rideState, tokenBucket.sendBurst, slidingWindow.sendBurst]);
+    }, [rideState, tokenBucket.refresh, slidingWindow.refresh]);
 
     useEffect(() => {
         if (rideState) {
@@ -99,19 +132,21 @@ export default function RideDashboardPage() {
         navigate("/billing", {
             state: {
                 ...rideState,
-                // Token Bucket results
                 tb_totalRequests: tokenBucket.requestStats?.total || 0,
                 tb_allowedRequests: tokenBucket.requestStats?.allowed || 0,
                 tb_blockedRequests: tokenBucket.requestStats?.blocked || 0,
                 tb_successRate: tokenBucket.requestStats?.successRate || "0",
-                // Sliding Window results
                 sw_totalRequests: slidingWindow.requestStats?.total || 0,
                 sw_allowedRequests: slidingWindow.requestStats?.allowed || 0,
                 sw_blockedRequests: slidingWindow.requestStats?.blocked || 0,
                 sw_successRate: slidingWindow.requestStats?.successRate || "0",
+                requestLog,
             },
         });
     };
+
+    // Count processed entries
+    const processedCount = requestLog.filter(e => e.tbResult !== null).length;
 
     return (
         <div className="page page-dashboard">
@@ -156,7 +191,7 @@ export default function RideDashboardPage() {
                         />
                     </div>
                     <span className="processing-label">
-                        {Math.round(processingProgress)}% complete
+                        {processedCount}/{rideState.rideCount} requests sent ({Math.round(processingProgress)}%)
                     </span>
                 </section>
             )}
@@ -175,24 +210,6 @@ export default function RideDashboardPage() {
                     <div className="algo-panel-header">
                         <h2 className="algo-panel-title">Token Bucket</h2>
                         <span className="algo-badge algo-badge-tb">Algorithm 1</span>
-                    </div>
-
-                    <div className="card">
-                        <h3>Capacity</h3>
-                        {tokenBucket.bucketStats ? (
-                            <BucketView
-                                current={tokenBucket.bucketStats.tokens}
-                                capacity={tokenBucket.bucketStats.capacity}
-                                refillRate={tokenBucket.bucketStats.refillRate}
-                                algorithm="token-bucket"
-                                lastRequestSuccess={tbLastSuccess}
-                            />
-                        ) : (
-                            <div className="loading-placeholder">
-                                <div className="spinner" />
-                                <p>Connecting...</p>
-                            </div>
-                        )}
                     </div>
 
                     <div className="card">
@@ -218,23 +235,16 @@ export default function RideDashboardPage() {
                         <h3>Request History</h3>
                         <RequestChart history={tokenBucket.requestStats?.history || []} maxPoints={30} />
                     </div>
-                </div>
-
-                {/* Sliding Window Panel */}
-                <div className="algo-panel">
-                    <div className="algo-panel-header">
-                        <h2 className="algo-panel-title">Sliding Window</h2>
-                        <span className="algo-badge algo-badge-sw">Algorithm 2</span>
-                    </div>
 
                     <div className="card">
-                        <h3>Window Status</h3>
-                        {slidingWindow.bucketStats ? (
-                            <WindowView
-                                currentCount={slidingWindow.bucketStats.currentCount ?? 0}
-                                maxRequests={slidingWindow.bucketStats.capacity}
-                                windowSize={slidingWindow.bucketStats.windowSize ?? 10000}
-                                lastRequestSuccess={swLastSuccess}
+                        <h3>Capacity</h3>
+                        {tokenBucket.bucketStats ? (
+                            <BucketView
+                                current={tokenBucket.bucketStats.tokens}
+                                capacity={tokenBucket.bucketStats.capacity}
+                                refillRate={tokenBucket.bucketStats.refillRate}
+                                algorithm="token-bucket"
+                                lastRequestSuccess={tbLastSuccess}
                             />
                         ) : (
                             <div className="loading-placeholder">
@@ -242,6 +252,14 @@ export default function RideDashboardPage() {
                                 <p>Connecting...</p>
                             </div>
                         )}
+                    </div>
+                </div>
+
+                {/* Sliding Window Panel */}
+                <div className="algo-panel">
+                    <div className="algo-panel-header">
+                        <h2 className="algo-panel-title">Sliding Window</h2>
+                        <span className="algo-badge algo-badge-sw">Algorithm 2</span>
                     </div>
 
                     <div className="card">
@@ -266,6 +284,23 @@ export default function RideDashboardPage() {
                     <div className="card card-chart">
                         <h3>Request History</h3>
                         <RequestChart history={slidingWindow.requestStats?.history || []} maxPoints={30} />
+                    </div>
+
+                    <div className="card">
+                        <h3>Window Status</h3>
+                        {slidingWindow.bucketStats ? (
+                            <WindowView
+                                currentCount={slidingWindow.bucketStats.currentCount ?? 0}
+                                maxRequests={slidingWindow.bucketStats.capacity}
+                                windowSize={slidingWindow.bucketStats.windowSize ?? 10000}
+                                lastRequestSuccess={swLastSuccess}
+                            />
+                        ) : (
+                            <div className="loading-placeholder">
+                                <div className="spinner" />
+                                <p>Connecting...</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </section>
@@ -301,6 +336,76 @@ export default function RideDashboardPage() {
                             <span>₹{slidingWindow.requestStats.allowed * rideState.farePerRide}</span>
                         </div>
                     </div>
+                </section>
+            )}
+
+            {/* ========== FULL REQUEST LOG ========== */}
+            {requestLog.length > 0 && (
+                <section className="request-log-section">
+                    <div className="request-log-header">
+                        <h2>Request Log</h2>
+                        <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            onClick={() => setShowLog(!showLog)}
+                        >
+                            {showLog ? "Hide Log" : "Show All Requests"}
+                        </button>
+                    </div>
+
+                    {showLog && (
+                        <div className="request-log card">
+                            <div className="request-log-table">
+                                <div className="request-log-thead">
+                                    <span className="log-col-id">#</span>
+                                    <span className="log-col-tb">Token Bucket</span>
+                                    <span className="log-col-sw">Sliding Window</span>
+                                    <span className="log-col-match">Match</span>
+                                </div>
+                                <div className="request-log-body">
+                                    {requestLog.map((entry) => {
+                                        const isPending = entry.tbResult === null;
+                                        const isMatch = entry.tbResult === entry.swResult;
+                                        return (
+                                            <div
+                                                key={entry.id}
+                                                className={`request-log-row ${isPending ? "log-row-pending" : ""}`}
+                                            >
+                                                <span className="log-col-id log-id">
+                                                    {entry.id}
+                                                </span>
+                                                <span className="log-col-tb">
+                                                    {isPending ? (
+                                                        <span className="log-pending">...</span>
+                                                    ) : entry.tbResult ? (
+                                                        <span className="log-accepted">Accepted</span>
+                                                    ) : (
+                                                        <span className="log-rejected">Rejected</span>
+                                                    )}
+                                                </span>
+                                                <span className="log-col-sw">
+                                                    {isPending ? (
+                                                        <span className="log-pending">...</span>
+                                                    ) : entry.swResult ? (
+                                                        <span className="log-accepted">Accepted</span>
+                                                    ) : (
+                                                        <span className="log-rejected">Rejected</span>
+                                                    )}
+                                                </span>
+                                                <span className="log-col-match">
+                                                    {isPending ? "" : isMatch ? (
+                                                        <span className="log-match-same">Same</span>
+                                                    ) : (
+                                                        <span className="log-match-diff">Different</span>
+                                                    )}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </section>
             )}
 

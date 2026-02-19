@@ -3077,6 +3077,155 @@ body {
 }
 
 /* ========================================
+   Request Log
+   ======================================== */
+.request-log-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.request-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.request-log-header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.request-log-header h2::before {
+  display: none;
+}
+
+.btn-sm {
+  font-size: 0.8rem;
+  padding: 6px 14px;
+}
+
+.request-log {
+  overflow: hidden;
+}
+
+.request-log-table {
+  width: 100%;
+}
+
+.request-log-thead {
+  display: grid;
+  grid-template-columns: 60px 1fr 1fr 100px;
+  gap: 0;
+  padding: 10px 16px;
+  background: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.request-log-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.request-log-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 1fr 100px;
+  gap: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: 0.85rem;
+  align-items: center;
+  transition: background var(--transition-fast);
+}
+
+.request-log-row:hover {
+  background: var(--color-bg-subtle);
+}
+
+.request-log-row:last-child {
+  border-bottom: none;
+}
+
+.log-row-pending {
+  opacity: 0.5;
+}
+
+.log-id {
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.log-accepted {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-success);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.log-accepted::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  flex-shrink: 0;
+}
+
+.log-rejected {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-danger);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.log-rejected::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  flex-shrink: 0;
+}
+
+.log-pending {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.log-match-same {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 2px 8px;
+  background: var(--color-bg-subtle);
+  border-radius: 10px;
+}
+
+.log-match-diff {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-warning);
+  padding: 2px 8px;
+  background: var(--color-warning-light);
+  border-radius: 10px;
+}
+
+/* ========================================
    Responsive — Dual Algorithm
    ======================================== */
 @media (max-width: 768px) {

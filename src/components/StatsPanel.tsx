@@ -8,7 +8,7 @@ export interface StatsPanelProps {
   allowed: number;
   blocked: number;
   successRate: string;
-  lastRequestSuccess: boolean | null;
+  lastRequestSuccess?: boolean | null;
   retryAfter?: number;
 }
 
@@ -17,8 +17,6 @@ export function StatsPanel({
   allowed,
   blocked,
   successRate,
-  lastRequestSuccess,
-  retryAfter,
 }: StatsPanelProps) {
   // Parse success rate percentage for color coding
   const successRateNum = parseFloat(successRate) || 0;
@@ -60,32 +58,6 @@ export function StatsPanel({
           <div className="stat-label">Blocked</div>
           <div className="stat-value stat-danger">{blocked}</div>
         </div>
-      </div>
-
-      {/* Last Request Status */}
-      <div className="last-request">
-        <div className="stat-label">Last Request</div>
-        {lastRequestSuccess === null ? (
-          <div className="status-indicator status-idle">
-            <span className="status-dot" />
-            No requests yet
-          </div>
-        ) : lastRequestSuccess ? (
-          <div className="status-indicator status-success">
-            <span className="status-dot" />
-            Allowed
-          </div>
-        ) : (
-          <div className="status-indicator status-blocked">
-            <span className="status-dot" />
-            Blocked
-            {retryAfter !== undefined && retryAfter > 0 && (
-              <span className="retry-info">
-                (retry in {retryAfter.toFixed(1)}s)
-              </span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
