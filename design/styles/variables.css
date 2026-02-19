@@ -5,11 +5,11 @@
 
 :root {
   /* ========================================
-     Colors - Primary
+     Colors - Primary (Emerald Green)
      ======================================== */
-  --color-primary: #6366f1;
-  --color-primary-hover: #4f46e5;
-  --color-primary-light: rgba(99, 102, 241, 0.1);
+  --color-primary: #059669;
+  --color-primary-hover: #047857;
+  --color-primary-light: rgba(5, 150, 105, 0.1);
 
   /* ========================================
      Colors - Semantic
@@ -18,9 +18,9 @@
   --color-success-dark: #059669;
   --color-success-light: rgba(16, 185, 129, 0.15);
 
-  --color-danger: #f43f5e;
-  --color-danger-dark: #e11d48;
-  --color-danger-light: rgba(244, 63, 94, 0.15);
+  --color-danger: #ef4444;
+  --color-danger-dark: #dc2626;
+  --color-danger-light: rgba(239, 68, 68, 0.15);
 
   --color-warning: #f59e0b;
   --color-warning-light: rgba(245, 158, 11, 0.15);
@@ -28,30 +28,28 @@
   /* ========================================
      Colors - Text
      ======================================== */
-  --color-text: #1e293b;
-  --color-text-secondary: #475569;
-  --color-text-muted: #94a3b8;
+  --color-text: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #9ca3af;
 
   /* ========================================
      Colors - Background & Border
      ======================================== */
-  --color-border: #e2e8f0;
-  --color-border-light: #f1f5f9;
-  --color-bg: #f8fafc;
-  --color-bg-subtle: #f1f5f9;
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
+  --color-bg: #f9fafb;
+  --color-bg-subtle: #f3f4f6;
   --color-card: #ffffff;
 
   /* ========================================
      Gradients
      ======================================== */
-  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --gradient-primary: linear-gradient(135deg, #059669 0%, #10b981 100%);
   --gradient-success: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-  --gradient-danger: linear-gradient(135deg, #f43f5e 0%, #fb7185 100%);
-  --gradient-water: linear-gradient(
-    180deg,
-    rgba(59, 130, 246, 0.3) 0%,
-    rgba(37, 99, 235, 0.5) 100%
-  );
+  --gradient-danger: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+  --gradient-water: linear-gradient(180deg,
+      rgba(16, 185, 129, 0.3) 0%,
+      rgba(5, 150, 105, 0.5) 100%);
 
   /* ========================================
      Shadows
@@ -65,7 +63,7 @@
   --shadow-xl:
     0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   --shadow-glow-success: 0 0 20px rgba(16, 185, 129, 0.3);
-  --shadow-glow-danger: 0 0 20px rgba(244, 63, 94, 0.3);
+  --shadow-glow-danger: 0 0 20px rgba(239, 68, 68, 0.3);
 
   /* ========================================
      Border Radius
@@ -76,9 +74,78 @@
   --radius-xl: 24px;
 
   /* ========================================
+     Ride Booking Accent Colors
+     ======================================== */
+  --color-ride-green: #10b981;
+  --color-ride-green-light: rgba(16, 185, 129, 0.12);
+  --color-ride-yellow: #f59e0b;
+  --color-ride-yellow-light: rgba(245, 158, 11, 0.12);
+  --color-ride-orange: #f97316;
+
+  --gradient-ride: linear-gradient(135deg, #059669 0%, #10b981 100%);
+
+  /* ========================================
+     Layout
+     ======================================== */
+  --navbar-height: 64px;
+
+  /* ========================================
      Transitions
      ======================================== */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 300ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========================================
+   Dark Mode Overrides
+   ======================================== */
+:root[data-theme="dark"] {
+  --color-primary: #10b981;
+  --color-primary-hover: #34d399;
+  --color-primary-light: rgba(16, 185, 129, 0.12);
+
+  --color-success: #34d399;
+  --color-success-dark: #10b981;
+  --color-success-light: rgba(52, 211, 153, 0.15);
+
+  --color-danger: #f87171;
+  --color-danger-dark: #ef4444;
+  --color-danger-light: rgba(248, 113, 113, 0.15);
+
+  --color-warning: #fbbf24;
+  --color-warning-light: rgba(251, 191, 36, 0.15);
+
+  --color-text: #f3f4f6;
+  --color-text-secondary: #d1d5db;
+  --color-text-muted: #6b7280;
+
+  --color-border: #374151;
+  --color-border-light: #1f2937;
+  --color-bg: #0f172a;
+  --color-bg-subtle: #1e293b;
+  --color-card: #1e293b;
+
+  --gradient-primary: linear-gradient(135deg, #059669 0%, #34d399 100%);
+  --gradient-success: linear-gradient(135deg, #10b981 0%, #6ee7b7 100%);
+  --gradient-danger: linear-gradient(135deg, #ef4444 0%, #fca5a5 100%);
+  --gradient-water: linear-gradient(180deg,
+      rgba(16, 185, 129, 0.25) 0%,
+      rgba(5, 150, 105, 0.45) 100%);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+  --shadow-glow-success: 0 0 20px rgba(52, 211, 153, 0.25);
+  --shadow-glow-danger: 0 0 20px rgba(248, 113, 113, 0.25);
+
+  --color-ride-green: #34d399;
+  --color-ride-green-light: rgba(52, 211, 153, 0.15);
+  --color-ride-yellow: #fbbf24;
+  --color-ride-yellow-light: rgba(251, 191, 36, 0.15);
+  --color-ride-orange: #fb923c;
+
+  --gradient-ride: linear-gradient(135deg, #059669 0%, #34d399 100%);
 }

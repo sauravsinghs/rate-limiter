@@ -1,15 +1,21 @@
 /**
  * API Service Layer
  * Handles all HTTP requests to the backend rate limiter API
+ * Supports both Token Bucket and Sliding Window algorithms
  */
 
 import API_ENDPOINTS from '../config/api';
+
+export type Algorithm = 'token-bucket' | 'sliding-window';
 
 export interface BucketStats {
   tokens: number;
   capacity: number;
   refillRate: number;
   utilization: string;
+  algorithm?: string;
+  windowSize?: number;
+  currentCount?: number;
 }
 
 export interface RequestStats {
@@ -28,8 +34,11 @@ export interface TestResponse {
   success: boolean;
   message: string;
   timestamp: number;
-  tokensRemaining: number;
-  bucketCapacity: number;
+  tokensRemaining?: number;
+  bucketCapacity?: number;
+  currentCount?: number;
+  windowRemaining?: number;
+  maxRequests?: number;
 }
 
 export interface RateLimitError {
@@ -40,30 +49,52 @@ export interface RateLimitError {
 }
 
 /**
+ * Get endpoints for a given algorithm
+ */
+function getEndpoints(algorithm: Algorithm) {
+  if (algorithm === 'sliding-window') {
+    return {
+      test: API_ENDPOINTS.TEST_SLIDING,
+      bucket: API_ENDPOINTS.STATS_SLIDING_BUCKET,
+      requests: API_ENDPOINTS.STATS_SLIDING_REQUESTS,
+      reset: API_ENDPOINTS.STATS_SLIDING_RESET,
+      config: API_ENDPOINTS.STATS_SLIDING_CONFIG
+    };
+  }
+  return {
+    test: API_ENDPOINTS.TEST,
+    bucket: API_ENDPOINTS.STATS_BUCKET,
+    requests: API_ENDPOINTS.STATS_REQUESTS,
+    reset: API_ENDPOINTS.STATS_RESET,
+    config: API_ENDPOINTS.STATS_CONFIG
+  };
+}
+
+/**
  * Send a test request to the rate-limited endpoint
  */
-export async function sendTestRequest(): Promise<TestResponse | RateLimitError> {
-  const response = await fetch(API_ENDPOINTS.TEST, {
+export async function sendTestRequest(algorithm: Algorithm = 'token-bucket'): Promise<TestResponse | RateLimitError> {
+  const endpoints = getEndpoints(algorithm);
+  const response = await fetch(endpoints.test, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: { 'Content-Type': 'application/json' }
   });
 
   const data = await response.json();
-  
+
   if (!response.ok) {
     return data as RateLimitError;
   }
-  
+
   return data as TestResponse;
 }
 
 /**
- * Get current bucket state
+ * Get current bucket/window state
  */
-export async function getBucketStats(): Promise<BucketStats> {
-  const response = await fetch(API_ENDPOINTS.STATS_BUCKET);
+export async function getBucketStats(algorithm: Algorithm = 'token-bucket'): Promise<BucketStats> {
+  const endpoints = getEndpoints(algorithm);
+  const response = await fetch(endpoints.bucket);
   if (!response.ok) {
     throw new Error('Failed to fetch bucket stats');
   }
@@ -73,8 +104,9 @@ export async function getBucketStats(): Promise<BucketStats> {
 /**
  * Get request statistics and history
  */
-export async function getRequestStats(limit: number = 100): Promise<RequestStats> {
-  const response = await fetch(`${API_ENDPOINTS.STATS_REQUESTS}?limit=${limit}`);
+export async function getRequestStats(limit: number = 100, algorithm: Algorithm = 'token-bucket'): Promise<RequestStats> {
+  const endpoints = getEndpoints(algorithm);
+  const response = await fetch(`${endpoints.requests}?limit=${limit}`);
   if (!response.ok) {
     throw new Error('Failed to fetch request stats');
   }
@@ -82,37 +114,45 @@ export async function getRequestStats(limit: number = 100): Promise<RequestStats
 }
 
 /**
- * Reset all statistics and bucket
+ * Reset all statistics and limiter
  */
-export async function resetStats(): Promise<void> {
-  const response = await fetch(API_ENDPOINTS.STATS_RESET, {
-    method: 'POST'
-  });
+export async function resetStats(algorithm: Algorithm = 'token-bucket'): Promise<void> {
+  const endpoints = getEndpoints(algorithm);
+  const response = await fetch(endpoints.reset, { method: 'POST' });
   if (!response.ok) {
     throw new Error('Failed to reset stats');
   }
 }
 
 /**
- * Update bucket configuration
+ * Reset both algorithms at once
+ */
+export async function resetAllStats(): Promise<void> {
+  await Promise.all([
+    resetStats('token-bucket'),
+    resetStats('sliding-window')
+  ]);
+}
+
+/**
+ * Update bucket/window configuration
  */
 export async function updateBucketConfig(config: {
   capacity?: number;
   refillRate?: number;
-}): Promise<{ message: string; capacity: number; refillRate: number }> {
-  const response = await fetch(API_ENDPOINTS.STATS_CONFIG, {
+}, algorithm: Algorithm = 'token-bucket'): Promise<{ message: string; capacity: number; refillRate: number }> {
+  const endpoints = getEndpoints(algorithm);
+  const response = await fetch(endpoints.config, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config)
   });
-  
+
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Failed to update config');
   }
-  
+
   return response.json();
 }
 
@@ -121,11 +161,8 @@ export async function updateBucketConfig(config: {
  */
 export async function checkHealth(): Promise<{
   status: string;
-  bucket: {
-    tokens: number;
-    capacity: number;
-    refillRate: number;
-  };
+  tokenBucket: { tokens: number; capacity: number; refillRate: number };
+  slidingWindow: { currentCount: number; maxRequests: number; windowSize: number };
 }> {
   const response = await fetch(API_ENDPOINTS.HEALTH);
   if (!response.ok) {
