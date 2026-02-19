@@ -1,6 +1,7 @@
 /**
  * Custom React Hook for Rate Limiter Dashboard
  * Manages state and polling for real-time visualization
+ * Supports both Token Bucket and Sliding Window algorithms
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,6 +11,7 @@ import {
   resetStats,
   sendTestRequest,
   updateBucketConfig,
+  type Algorithm,
   type BucketStats,
   type RateLimitError,
   type RequestStats,
@@ -17,12 +19,13 @@ import {
 } from "../services/api";
 
 interface UseRateLimiterOptions {
-  pollInterval?: number; // milliseconds
+  pollInterval?: number;
   historyLimit?: number;
+  algorithm?: Algorithm;
 }
 
 export function useRateLimiter(options: UseRateLimiterOptions = {}) {
-  const { pollInterval = 500, historyLimit = 100 } = options;
+  const { pollInterval = 500, historyLimit = 100, algorithm = 'token-bucket' } = options;
 
   const [bucketStats, setBucketStats] = useState<BucketStats | null>(null);
   const [requestStats, setRequestStats] = useState<RequestStats | null>(null);
@@ -34,10 +37,9 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch bucket stats
   const fetchBucketStats = useCallback(async () => {
     try {
-      const stats = await getBucketStats();
+      const stats = await getBucketStats(algorithm);
       setBucketStats(stats);
       setError(null);
     } catch (err) {
@@ -45,12 +47,11 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
         err instanceof Error ? err.message : "Failed to fetch bucket stats",
       );
     }
-  }, []);
+  }, [algorithm]);
 
-  // Fetch request stats
   const fetchRequestStats = useCallback(async () => {
     try {
-      const stats = await getRequestStats(historyLimit);
+      const stats = await getRequestStats(historyLimit, algorithm);
       setRequestStats(stats);
       setError(null);
     } catch (err) {
@@ -58,18 +59,15 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
         err instanceof Error ? err.message : "Failed to fetch request stats",
       );
     }
-  }, [historyLimit]);
+  }, [historyLimit, algorithm]);
 
-  // Send a test request
   const sendRequest = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await sendTestRequest();
+      const response = await sendTestRequest(algorithm);
       setLastResponse(response);
-
-      // Immediately refresh stats after request
       await Promise.all([fetchBucketStats(), fetchRequestStats()]);
     } catch (err) {
       const errorMessage =
@@ -84,25 +82,22 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchBucketStats, fetchRequestStats]);
+  }, [algorithm, fetchBucketStats, fetchRequestStats]);
 
-  // Send multiple requests (burst simulation)
   const sendBurst = useCallback(
     async (count: number = 10, delay: number = 50) => {
       setIsLoading(true);
       setError(null);
 
       try {
-        // Send requests sequentially with delay, tracking each response
         for (let i = 0; i < count; i++) {
           if (i > 0) {
             await new Promise((resolve) => setTimeout(resolve, delay));
           }
-          const response = await sendTestRequest();
-          setLastResponse(response); // Update after each request
+          const response = await sendTestRequest(algorithm);
+          setLastResponse(response);
         }
 
-        // Refresh stats after burst
         await Promise.all([fetchBucketStats(), fetchRequestStats()]);
       } catch (err) {
         const errorMessage =
@@ -118,26 +113,24 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
         setIsLoading(false);
       }
     },
-    [fetchBucketStats, fetchRequestStats],
+    [algorithm, fetchBucketStats, fetchRequestStats],
   );
 
-  // Reset stats
   const reset = useCallback(async () => {
     try {
-      await resetStats();
+      await resetStats(algorithm);
       await Promise.all([fetchBucketStats(), fetchRequestStats()]);
       setLastResponse(null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reset");
     }
-  }, [fetchBucketStats, fetchRequestStats]);
+  }, [algorithm, fetchBucketStats, fetchRequestStats]);
 
-  // Update bucket config
   const updateConfig = useCallback(
     async (config: { capacity?: number; refillRate?: number }) => {
       try {
-        await updateBucketConfig(config);
+        await updateBucketConfig(config, algorithm);
         await fetchBucketStats();
         setError(null);
       } catch (err) {
@@ -146,22 +139,20 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
         );
       }
     },
-    [fetchBucketStats],
+    [algorithm, fetchBucketStats],
   );
 
-  // Start polling
   const startPolling = useCallback(() => {
-    if (pollingRef.current) return; // Already polling
+    if (pollingRef.current) return;
 
     const poll = async () => {
       await Promise.all([fetchBucketStats(), fetchRequestStats()]);
     };
 
-    poll(); // Initial fetch
+    poll();
     pollingRef.current = setInterval(poll, pollInterval);
   }, [pollInterval, fetchBucketStats, fetchRequestStats]);
 
-  // Stop polling
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
@@ -169,7 +160,6 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
     }
   }, []);
 
-  // Auto-start polling on mount
   useEffect(() => {
     startPolling();
     return () => stopPolling();

@@ -1,15 +1,17 @@
 /**
  * RideDashboardPage — Page 2
- * Rate limiter dashboard customized for ride booking
- * Auto-sends rideCount requests and shows live result
+ * Dual algorithm comparison: Token Bucket vs Sliding Window
+ * Both process the same requests in parallel, displayed side-by-side
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import BucketView from "../components/BucketView";
+import WindowView from "../components/WindowView";
 import RequestChart from "../components/RequestChart";
 import StatsPanel from "../components/StatsPanel";
 import { useRateLimiter } from "../hooks/useRateLimiter";
+import { resetAllStats } from "../services/api";
 
 interface RideState {
     pickup: string;
@@ -25,14 +27,9 @@ export default function RideDashboardPage() {
     const navigate = useNavigate();
     const rideState = location.state as RideState | null;
 
-    const {
-        bucketStats,
-        requestStats,
-        error,
-        lastResponse,
-        sendBurst,
-        reset,
-    } = useRateLimiter({ pollInterval: 500, historyLimit: 100 });
+    // Two independent hooks — one for each algorithm
+    const tokenBucket = useRateLimiter({ pollInterval: 500, historyLimit: 100, algorithm: 'token-bucket' });
+    const slidingWindow = useRateLimiter({ pollInterval: 500, historyLimit: 100, algorithm: 'sliding-window' });
 
     const [hasProcessed, setHasProcessed] = useState(rideState?.skipProcessing ?? false);
     const [processingProgress, setProcessingProgress] = useState(rideState?.skipProcessing ? 100 : 0);
@@ -45,15 +42,14 @@ export default function RideDashboardPage() {
         }
     }, [rideState, navigate]);
 
-    // Auto-start processing on mount
+    // Auto-start processing on mount — both algorithms in parallel
     const startProcessing = useCallback(async () => {
         if (!rideState || processedRef.current) return;
         processedRef.current = true;
 
-        // Reset stats first
-        await reset();
+        // Reset both algorithms
+        await resetAllStats();
 
-        // Simulate progress
         const totalRides = rideState.rideCount;
         const progressTimer = setInterval(() => {
             setProcessingProgress((prev) => {
@@ -65,17 +61,19 @@ export default function RideDashboardPage() {
             });
         }, 50);
 
-        // Send burst of ride requests
-        await sendBurst(totalRides, 80);
+        // Fire both algorithms in parallel on the same count
+        await Promise.all([
+            tokenBucket.sendBurst(totalRides, 200),
+            slidingWindow.sendBurst(totalRides, 200),
+        ]);
 
         clearInterval(progressTimer);
         setProcessingProgress(100);
 
-        // Small delay before marking complete
         setTimeout(() => {
             setHasProcessed(true);
         }, 500);
-    }, [rideState, sendBurst, reset]);
+    }, [rideState, tokenBucket.sendBurst, slidingWindow.sendBurst]);
 
     useEffect(() => {
         if (rideState) {
@@ -85,20 +83,32 @@ export default function RideDashboardPage() {
 
     if (!rideState) return null;
 
-    const lastRequestSuccess = lastResponse ? lastResponse.success : null;
-    const retryAfter =
-        lastResponse && !lastResponse.success && "retryAfter" in lastResponse
-            ? lastResponse.retryAfter
+    const tbLastSuccess = tokenBucket.lastResponse ? tokenBucket.lastResponse.success : null;
+    const swLastSuccess = slidingWindow.lastResponse ? slidingWindow.lastResponse.success : null;
+
+    const tbRetryAfter =
+        tokenBucket.lastResponse && !tokenBucket.lastResponse.success && "retryAfter" in tokenBucket.lastResponse
+            ? tokenBucket.lastResponse.retryAfter
+            : undefined;
+    const swRetryAfter =
+        slidingWindow.lastResponse && !slidingWindow.lastResponse.success && "retryAfter" in slidingWindow.lastResponse
+            ? slidingWindow.lastResponse.retryAfter
             : undefined;
 
     const handleGoToBilling = () => {
         navigate("/billing", {
             state: {
                 ...rideState,
-                totalRequests: requestStats?.total || 0,
-                allowedRequests: requestStats?.allowed || 0,
-                blockedRequests: requestStats?.blocked || 0,
-                successRate: requestStats?.successRate || "0",
+                // Token Bucket results
+                tb_totalRequests: tokenBucket.requestStats?.total || 0,
+                tb_allowedRequests: tokenBucket.requestStats?.allowed || 0,
+                tb_blockedRequests: tokenBucket.requestStats?.blocked || 0,
+                tb_successRate: tokenBucket.requestStats?.successRate || "0",
+                // Sliding Window results
+                sw_totalRequests: slidingWindow.requestStats?.total || 0,
+                sw_allowedRequests: slidingWindow.requestStats?.allowed || 0,
+                sw_blockedRequests: slidingWindow.requestStats?.blocked || 0,
+                sw_successRate: slidingWindow.requestStats?.successRate || "0",
             },
         });
     };
@@ -109,13 +119,13 @@ export default function RideDashboardPage() {
             <section className="dash-hero">
                 <div className="dash-hero-content">
                     <h1 className="dash-title">
-                        {hasProcessed ? "Rides Processed" : "Processing Your Rides"}
+                        {hasProcessed ? "Processing Complete" : "Processing Requests"}
                         {!hasProcessed && <span className="processing-dot">...</span>}
                     </h1>
                     <p className="dash-subtitle">
                         {hasProcessed
-                            ? "All booking requests have been processed through the rate limiter"
-                            : "Sending booking requests through the Token Bucket rate limiter"}
+                            ? "Both algorithms have processed all booking requests"
+                            : "Running Token Bucket and Sliding Window in parallel"}
                     </p>
                 </div>
 
@@ -152,82 +162,147 @@ export default function RideDashboardPage() {
             )}
 
             {/* Error Banner */}
-            {error && (
+            {(tokenBucket.error || slidingWindow.error) && (
                 <div className="error-banner">
-                    <span>{error}</span>
+                    <span>{tokenBucket.error || slidingWindow.error}</span>
                 </div>
             )}
 
-            {/* Main Dashboard Grid */}
-            <section className="grid grid-main">
-                {/* Token Bucket */}
-                <div className="card">
-                    <h2>Server Capacity (Token Bucket)</h2>
-                    {bucketStats ? (
-                        <BucketView
-                            current={bucketStats.tokens}
-                            capacity={bucketStats.capacity}
-                            refillRate={bucketStats.refillRate}
-                            algorithm="token-bucket"
-                            lastRequestSuccess={lastRequestSuccess}
-                        />
-                    ) : (
-                        <div className="loading-placeholder">
-                            <div className="spinner" />
-                            <p>Connecting to server...</p>
-                        </div>
-                    )}
+            {/* ========== SIDE-BY-SIDE ALGORITHM PANELS ========== */}
+            <section className="algo-comparison">
+                {/* Token Bucket Panel */}
+                <div className="algo-panel">
+                    <div className="algo-panel-header">
+                        <h2 className="algo-panel-title">Token Bucket</h2>
+                        <span className="algo-badge algo-badge-tb">Algorithm 1</span>
+                    </div>
+
+                    <div className="card">
+                        <h3>Capacity</h3>
+                        {tokenBucket.bucketStats ? (
+                            <BucketView
+                                current={tokenBucket.bucketStats.tokens}
+                                capacity={tokenBucket.bucketStats.capacity}
+                                refillRate={tokenBucket.bucketStats.refillRate}
+                                algorithm="token-bucket"
+                                lastRequestSuccess={tbLastSuccess}
+                            />
+                        ) : (
+                            <div className="loading-placeholder">
+                                <div className="spinner" />
+                                <p>Connecting...</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="card">
+                        <h3>Statistics</h3>
+                        {tokenBucket.requestStats ? (
+                            <StatsPanel
+                                total={tokenBucket.requestStats.total}
+                                allowed={tokenBucket.requestStats.allowed}
+                                blocked={tokenBucket.requestStats.blocked}
+                                successRate={tokenBucket.requestStats.successRate}
+                                lastRequestSuccess={tbLastSuccess}
+                                retryAfter={tbRetryAfter}
+                            />
+                        ) : (
+                            <div className="loading-placeholder">
+                                <div className="spinner" />
+                                <p>Loading...</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="card card-chart">
+                        <h3>Request History</h3>
+                        <RequestChart history={tokenBucket.requestStats?.history || []} maxPoints={30} />
+                    </div>
                 </div>
 
-                {/* Stats Panel */}
-                <div className="card">
-                    <h2>Booking Statistics</h2>
-                    {requestStats ? (
-                        <StatsPanel
-                            total={requestStats.total}
-                            allowed={requestStats.allowed}
-                            blocked={requestStats.blocked}
-                            successRate={requestStats.successRate}
-                            lastRequestSuccess={lastRequestSuccess}
-                            retryAfter={retryAfter}
-                        />
-                    ) : (
-                        <div className="loading-placeholder">
-                            <div className="spinner" />
-                            <p>Loading statistics...</p>
-                        </div>
-                    )}
+                {/* Sliding Window Panel */}
+                <div className="algo-panel">
+                    <div className="algo-panel-header">
+                        <h2 className="algo-panel-title">Sliding Window</h2>
+                        <span className="algo-badge algo-badge-sw">Algorithm 2</span>
+                    </div>
+
+                    <div className="card">
+                        <h3>Window Status</h3>
+                        {slidingWindow.bucketStats ? (
+                            <WindowView
+                                currentCount={slidingWindow.bucketStats.currentCount ?? 0}
+                                maxRequests={slidingWindow.bucketStats.capacity}
+                                windowSize={slidingWindow.bucketStats.windowSize ?? 10000}
+                                lastRequestSuccess={swLastSuccess}
+                            />
+                        ) : (
+                            <div className="loading-placeholder">
+                                <div className="spinner" />
+                                <p>Connecting...</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="card">
+                        <h3>Statistics</h3>
+                        {slidingWindow.requestStats ? (
+                            <StatsPanel
+                                total={slidingWindow.requestStats.total}
+                                allowed={slidingWindow.requestStats.allowed}
+                                blocked={slidingWindow.requestStats.blocked}
+                                successRate={slidingWindow.requestStats.successRate}
+                                lastRequestSuccess={swLastSuccess}
+                                retryAfter={swRetryAfter}
+                            />
+                        ) : (
+                            <div className="loading-placeholder">
+                                <div className="spinner" />
+                                <p>Loading...</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="card card-chart">
+                        <h3>Request History</h3>
+                        <RequestChart history={slidingWindow.requestStats?.history || []} maxPoints={30} />
+                    </div>
                 </div>
             </section>
 
-            {/* Ride Results Summary */}
-            {hasProcessed && requestStats && (
-                <section className="ride-results card">
-                    <h2>Ride Booking Results</h2>
-                    <div className="results-grid">
-                        <div className="result-item result-confirmed">
-                            <div className="result-value">{requestStats.allowed}</div>
-                            <div className="result-label">Rides Confirmed</div>
+            {/* Combined Results */}
+            {hasProcessed && tokenBucket.requestStats && slidingWindow.requestStats && (
+                <section className="comparison-results card">
+                    <h2>Comparison Results</h2>
+                    <div className="comparison-table">
+                        <div className="comparison-header">
+                            <span>Metric</span>
+                            <span>Token Bucket</span>
+                            <span>Sliding Window</span>
                         </div>
-                        <div className="result-item result-rejected">
-                            <div className="result-value">{requestStats.blocked}</div>
-                            <div className="result-label">Rides Rejected</div>
+                        <div className="comparison-row">
+                            <span>Bookings Confirmed</span>
+                            <span className="stat-success">{tokenBucket.requestStats.allowed}</span>
+                            <span className="stat-success">{slidingWindow.requestStats.allowed}</span>
                         </div>
-                        <div className="result-item result-total">
-                            <div className="result-value">
-                                ₹{requestStats.allowed * rideState.farePerRide}
-                            </div>
-                            <div className="result-label">Total Fare</div>
+                        <div className="comparison-row">
+                            <span>Bookings Rejected</span>
+                            <span className="stat-danger">{tokenBucket.requestStats.blocked}</span>
+                            <span className="stat-danger">{slidingWindow.requestStats.blocked}</span>
+                        </div>
+                        <div className="comparison-row">
+                            <span>Success Rate</span>
+                            <span>{tokenBucket.requestStats.successRate}%</span>
+                            <span>{slidingWindow.requestStats.successRate}%</span>
+                        </div>
+                        <div className="comparison-row">
+                            <span>Fare Charged</span>
+                            <span>₹{tokenBucket.requestStats.allowed * rideState.farePerRide}</span>
+                            <span>₹{slidingWindow.requestStats.allowed * rideState.farePerRide}</span>
                         </div>
                     </div>
                 </section>
             )}
-
-            {/* Chart */}
-            <section className="card card-chart">
-                <h2>Request History</h2>
-                <RequestChart history={requestStats?.history || []} maxPoints={30} />
-            </section>
 
             {/* Actions */}
             <section className="dash-actions">
@@ -238,7 +313,7 @@ export default function RideDashboardPage() {
                             className="btn btn-primary btn-large"
                             onClick={handleGoToBilling}
                         >
-                            View Billing
+                            View Billing Comparison
                         </button>
                         <button
                             type="button"
@@ -253,7 +328,7 @@ export default function RideDashboardPage() {
                         <div className="spinner" />
                         <span>
                             Processing {rideState.rideCount} booking request
-                            {rideState.rideCount > 1 ? "s" : ""}...
+                            {rideState.rideCount > 1 ? "s" : ""} through both algorithms...
                         </span>
                     </div>
                 )}

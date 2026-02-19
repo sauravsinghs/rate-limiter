@@ -1,11 +1,11 @@
 /**
  * BillingPage — Page 3
- * Billing summary with invoice-style breakdown
+ * Comparison billing: Token Bucket vs Sliding Window side by side
  */
 
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { resetStats } from "../services/api";
+import { resetAllStats } from "../services/api";
 
 interface BillingState {
     pickup: string;
@@ -13,10 +13,16 @@ interface BillingState {
     rideCount: number;
     farePerRide: number;
     distance: string;
-    totalRequests: number;
-    allowedRequests: number;
-    blockedRequests: number;
-    successRate: string;
+    // Token Bucket
+    tb_totalRequests: number;
+    tb_allowedRequests: number;
+    tb_blockedRequests: number;
+    tb_successRate: string;
+    // Sliding Window
+    sw_totalRequests: number;
+    sw_allowedRequests: number;
+    sw_blockedRequests: number;
+    sw_successRate: string;
 }
 
 export default function BillingPage() {
@@ -32,15 +38,16 @@ export default function BillingPage() {
 
     if (!billing) return null;
 
-    const confirmedFare = billing.allowedRequests * billing.farePerRide;
-    const rejectedFare = billing.blockedRequests * billing.farePerRide;
-    const successRateNum = parseFloat(billing.successRate) || 0;
+    const tbFare = billing.tb_allowedRequests * billing.farePerRide;
+    const swFare = billing.sw_allowedRequests * billing.farePerRide;
+    const tbSuccessRate = parseFloat(billing.tb_successRate) || 0;
+    const swSuccessRate = parseFloat(billing.sw_successRate) || 0;
 
     const handleBookAgain = async () => {
         try {
-            await resetStats();
+            await resetAllStats();
         } catch {
-            // Ignore — stats will reset eventually
+            // Ignore
         }
         navigate("/");
     };
@@ -50,22 +57,21 @@ export default function BillingPage() {
             {/* Header */}
             <section className="billing-hero">
                 <div className="billing-hero-content">
-                    <h1 className="billing-title">Billing Summary</h1>
+                    <h1 className="billing-title">Billing Comparison</h1>
                     <p className="billing-subtitle">
-                        Your ride booking invoice with rate limiter breakdown
+                        How each algorithm handled {billing.rideCount} booking requests
                     </p>
                 </div>
             </section>
 
-            {/* Invoice */}
+            {/* Route Info */}
             <section className="invoice-card">
-                {/* Invoice Header */}
                 <div className="invoice-header">
                     <div className="invoice-brand">
                         <span className="invoice-logo">R</span>
                         <div>
                             <h3>Ride Booking Services</h3>
-                            <p>Booking Invoice</p>
+                            <p>Algorithm Comparison Invoice</p>
                         </div>
                     </div>
                     <div className="invoice-date">
@@ -82,7 +88,6 @@ export default function BillingPage() {
                     </div>
                 </div>
 
-                {/* Route */}
                 <div className="invoice-route">
                     <div className="invoice-route-point">
                         <span className="route-dot pickup-dot" />
@@ -103,96 +108,69 @@ export default function BillingPage() {
                         <span>{billing.distance} km</span>
                     </div>
                 </div>
+            </section>
 
-                {/* Line Items */}
-                <div className="invoice-items">
-                    <div className="invoice-row invoice-row-header">
-                        <span>Description</span>
-                        <span>Qty</span>
-                        <span>Rate</span>
-                        <span>Amount</span>
+            {/* Comparison Table */}
+            <section className="billing-comparison card">
+                <h2>Algorithm Comparison</h2>
+                <div className="comparison-table billing-comparison-table">
+                    <div className="comparison-header">
+                        <span>Metric</span>
+                        <span>Token Bucket</span>
+                        <span>Sliding Window</span>
                     </div>
-
-                    <div className="invoice-row">
-                        <span>Bookings Requested</span>
-                        <span>{billing.rideCount}</span>
-                        <span>₹{billing.farePerRide}</span>
-                        <span>₹{billing.rideCount * billing.farePerRide}</span>
+                    <div className="comparison-row">
+                        <span>Total Requests</span>
+                        <span>{billing.tb_totalRequests}</span>
+                        <span>{billing.sw_totalRequests}</span>
                     </div>
-
-                    <div className="invoice-row row-confirmed">
-                        <span>
-                            Rides Confirmed
-                        </span>
-                        <span>{billing.allowedRequests}</span>
-                        <span>₹{billing.farePerRide}</span>
-                        <span className="amount-success">₹{confirmedFare}</span>
+                    <div className="comparison-row">
+                        <span>Bookings Confirmed</span>
+                        <span className="stat-success">{billing.tb_allowedRequests}</span>
+                        <span className="stat-success">{billing.sw_allowedRequests}</span>
                     </div>
-
-                    <div className="invoice-row row-rejected">
-                        <span>
-                            Rides Rejected (Rate Limited)
-                        </span>
-                        <span>{billing.blockedRequests}</span>
-                        <span>₹{billing.farePerRide}</span>
-                        <span className="amount-danger">
-                            -₹{rejectedFare}
-                        </span>
+                    <div className="comparison-row">
+                        <span>Bookings Rejected</span>
+                        <span className="stat-danger">{billing.tb_blockedRequests}</span>
+                        <span className="stat-danger">{billing.sw_blockedRequests}</span>
                     </div>
-
-                    <div className="invoice-divider" />
-
-                    <div className="invoice-row invoice-total">
-                        <span>Amount Charged</span>
-                        <span />
-                        <span />
-                        <span>₹{confirmedFare}</span>
+                    <div className="comparison-row">
+                        <span>Success Rate</span>
+                        <span>{tbSuccessRate.toFixed(1)}%</span>
+                        <span>{swSuccessRate.toFixed(1)}%</span>
                     </div>
-
-                    {rejectedFare > 0 && (
-                        <div className="invoice-row invoice-savings">
-                            <span>Rejected rides</span>
-                            <span />
-                            <span />
-                            <span>₹{rejectedFare}</span>
-                        </div>
-                    )}
+                    <div className="comparison-row comparison-row-highlight">
+                        <span>Fare Charged</span>
+                        <span>₹{tbFare}</span>
+                        <span>₹{swFare}</span>
+                    </div>
                 </div>
             </section>
 
-            {/* Rate Limiter Info */}
-            <section className="billing-info-card">
-                <div className="info-card-content">
-                    <h3>Why were some rides rejected?</h3>
+            {/* Algorithm Explanation */}
+            <section className="algo-explanation">
+                <div className="algo-explain-card">
+                    <h3>Token Bucket</h3>
                     <p>
-                        The Token Bucket rate limiter has a finite capacity of tokens. Each
-                        booking request consumes one token. When the bucket runs empty,
-                        subsequent requests are rejected with HTTP 429 (Too Many Requests)
-                        until tokens refill.
+                        Starts with a full bucket of tokens. Each request consumes one token.
+                        Tokens refill at a steady rate. Allows <strong>burst traffic</strong> —
+                        if the bucket is full, many requests pass instantly until tokens run out.
                     </p>
-                    <div className="info-stats">
-                        <div className="info-stat">
-                            <span className="info-stat-value">{billing.totalRequests}</span>
-                            <span className="info-stat-label">Total Requests</span>
-                        </div>
-                        <div className="info-stat">
-                            <span className="info-stat-value stat-success">
-                                {billing.allowedRequests}
-                            </span>
-                            <span className="info-stat-label">Allowed</span>
-                        </div>
-                        <div className="info-stat">
-                            <span className="info-stat-value stat-danger">
-                                {billing.blockedRequests}
-                            </span>
-                            <span className="info-stat-label">Blocked</span>
-                        </div>
-                        <div className="info-stat">
-                            <span className="info-stat-value">
-                                {successRateNum.toFixed(1)}%
-                            </span>
-                            <span className="info-stat-label">Success Rate</span>
-                        </div>
+                    <div className="explain-stat">
+                        <span className="explain-allowed">{billing.tb_allowedRequests}</span> confirmed,{" "}
+                        <span className="explain-blocked">{billing.tb_blockedRequests}</span> rejected
+                    </div>
+                </div>
+                <div className="algo-explain-card">
+                    <h3>Sliding Window Counter</h3>
+                    <p>
+                        Tracks requests within a rolling time window. If the count exceeds the
+                        limit within the window, new requests are rejected.
+                        Provides <strong>smoother rate limiting</strong> over time.
+                    </p>
+                    <div className="explain-stat">
+                        <span className="explain-allowed">{billing.sw_allowedRequests}</span> confirmed,{" "}
+                        <span className="explain-blocked">{billing.sw_blockedRequests}</span> rejected
                     </div>
                 </div>
             </section>

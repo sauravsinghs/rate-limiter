@@ -150,19 +150,19 @@ export default function BookRidePage() {
                                 type="number"
                                 className="count-input"
                                 min={1}
-                                max={50}
+                                max={100}
                                 value={rideCount}
                                 onChange={(e) =>
                                     setRideCount(
-                                        Math.max(1, Math.min(50, Number(e.target.value))),
+                                        Math.max(1, Math.min(100, Number(e.target.value))),
                                     )
                                 }
                             />
                             <button
                                 type="button"
                                 className="count-btn"
-                                onClick={() => setRideCount(Math.min(50, rideCount + 1))}
-                                disabled={rideCount >= 50}
+                                onClick={() => setRideCount(Math.min(100, rideCount + 1))}
+                                disabled={rideCount >= 100}
                             >
                                 +
                             </button>
@@ -171,17 +171,17 @@ export default function BookRidePage() {
                             type="range"
                             className="slider ride-slider"
                             min={1}
-                            max={50}
+                            max={100}
                             value={rideCount}
                             onChange={(e) => setRideCount(Number(e.target.value))}
                         />
                         <div className="ride-count-labels">
                             <span>1</span>
-                            <span>10</span>
                             <span>20</span>
-                            <span>30</span>
                             <span>40</span>
-                            <span>50</span>
+                            <span>60</span>
+                            <span>80</span>
+                            <span>100</span>
                         </div>
                     </div>
                 </div>

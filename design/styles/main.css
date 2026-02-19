@@ -2752,3 +2752,350 @@ body {
   gap: 16px;
   padding: 16px 0;
 }
+
+/* ========================================
+   Side-by-Side Algorithm Comparison
+   ======================================== */
+.algo-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.algo-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.algo-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.algo-panel-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.algo-panel-title::before {
+  display: none;
+}
+
+.algo-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.algo-badge-tb {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.algo-badge-sw {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.algo-panel .card h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+}
+
+.algo-panel .card h3::before {
+  display: none;
+}
+
+/* ========================================
+   WindowView Visualization
+   ======================================== */
+.window-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.window-info {
+  display: flex;
+  gap: 24px;
+}
+
+.window-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.window-info-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--color-text-muted);
+}
+
+.window-info-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.window-ok {
+  color: var(--color-success);
+}
+
+.window-full {
+  color: var(--color-danger);
+}
+
+.window-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.window-bar-bg {
+  position: relative;
+  height: 40px;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.window-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--gradient-success);
+  border-radius: var(--radius-sm);
+  transition: width var(--transition-normal);
+}
+
+.window-bar-danger {
+  background: var(--gradient-danger);
+}
+
+.window-slots {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  z-index: 1;
+}
+
+.window-slot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.window-slot-used {
+  background: #ffffff;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+}
+
+.window-slot-full {
+  background: #ffffff;
+}
+
+.window-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.window-last-request {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.window-last-request.request-allowed {
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.window-last-request.request-blocked {
+  background: var(--color-danger-light);
+  color: var(--color-danger-dark);
+}
+
+.window-last-request .request-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.request-allowed .request-dot {
+  background: var(--color-success);
+}
+
+.request-blocked .request-dot {
+  background: var(--color-danger);
+}
+
+/* ========================================
+   Comparison Table
+   ======================================== */
+.comparison-results,
+.billing-comparison {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+}
+
+.comparison-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.comparison-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 0;
+  padding: 12px 20px;
+  background: var(--color-bg-subtle);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.comparison-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 0;
+  padding: 12px 20px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.comparison-row:last-child {
+  border-bottom: none;
+}
+
+.comparison-row span:first-child {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.comparison-row span:nth-child(2),
+.comparison-row span:nth-child(3) {
+  font-weight: 600;
+  text-align: center;
+}
+
+.comparison-row-highlight {
+  background: var(--color-bg-subtle);
+  font-weight: 700;
+}
+
+.comparison-row-highlight span {
+  font-weight: 700 !important;
+  color: var(--color-text) !important;
+}
+
+/* ========================================
+   Algorithm Explanation Cards
+   ======================================== */
+.algo-explanation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.algo-explain-card {
+  padding: 24px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.algo-explain-card h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.algo-explain-card p {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.explain-stat {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.explain-allowed {
+  color: var(--color-success);
+}
+
+.explain-blocked {
+  color: var(--color-danger);
+}
+
+/* ========================================
+   Responsive — Dual Algorithm
+   ======================================== */
+@media (max-width: 768px) {
+  .algo-comparison {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    padding: 0 16px;
+  }
+
+  .algo-explanation {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 0 16px;
+  }
+
+  .comparison-header,
+  .comparison-row {
+    grid-template-columns: 1.5fr 1fr 1fr;
+    font-size: 0.8rem;
+    padding: 10px 12px;
+  }
+}
