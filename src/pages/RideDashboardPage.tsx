@@ -14,14 +14,125 @@ import AlgorithmToolbox, {
 } from "../components/dashboard/AlgorithmToolbox";
 import RequestTimeline from "../components/dashboard/RequestTimeline";
 import SimulationControls from "../components/dashboard/SimulationControls";
+import BucketView from "../components/BucketView";
+import WindowView from "../components/WindowView";
+import LeakyBucketView from "../components/LeakyBucketView";
 import { useRateLimiter } from "../hooks/useRateLimiter";
 import { useDeterministicSimulation } from "../hooks/useDeterministicSimulation";
 import {
   resetAllStats,
   sendTestRequest,
+  updateBucketConfig,
   type Algorithm,
+  type BucketStats,
+  type RequestStats,
 } from "../services/api";
-import type { SimulationParams } from "../engine/types";
+import type { SimulationParams, SimulationStep } from "../engine/types";
+
+function getSimulatedBucketStats(
+  algorithm: Algorithm,
+  steps: SimulationStep[],
+  cursorIndex: number,
+  params: SimulationParams
+): BucketStats {
+  if (cursorIndex === 0 || steps.length === 0) {
+    if (algorithm === "token-bucket") {
+      return {
+        tokens: params.tokenBucket.capacity,
+        capacity: params.tokenBucket.capacity,
+        refillRate: params.tokenBucket.refillRate,
+        utilization: "0.00",
+      };
+    }
+    if (algorithm === "sliding-window") {
+      return {
+        tokens: 0,
+        capacity: params.slidingWindow.maxRequests,
+        refillRate: 0,
+        utilization: "0",
+        windowSize: params.slidingWindow.windowSize,
+        currentCount: 0,
+      };
+    }
+    return {
+      tokens: 0,
+      capacity: params.leakyBucket.capacity,
+      refillRate: params.leakyBucket.leakRate,
+      utilization: "0.00",
+      currentLevel: 0,
+      leakRate: params.leakyBucket.leakRate,
+      queueRemaining: params.leakyBucket.capacity,
+    };
+  }
+
+  const step = steps[Math.min(cursorIndex - 1, steps.length - 1)];
+  if (algorithm === "token-bucket") {
+    return {
+      tokens: step.tokenBucket.tokens,
+      capacity: params.tokenBucket.capacity,
+      refillRate: params.tokenBucket.refillRate,
+      utilization: (((params.tokenBucket.capacity - step.tokenBucket.tokens) / params.tokenBucket.capacity) * 100).toFixed(2),
+    };
+  }
+  if (algorithm === "sliding-window") {
+    return {
+      tokens: 0,
+      capacity: params.slidingWindow.maxRequests,
+      refillRate: 0,
+      utilization: "0",
+      windowSize: params.slidingWindow.windowSize,
+      currentCount: step.slidingWindow.count,
+    };
+  }
+  return {
+    tokens: 0,
+    capacity: params.leakyBucket.capacity,
+    refillRate: params.leakyBucket.leakRate,
+    utilization: ((step.leakyBucket.queueSize / params.leakyBucket.capacity) * 100).toFixed(2),
+    currentLevel: step.leakyBucket.queueSize,
+    leakRate: params.leakyBucket.leakRate,
+    queueRemaining: Math.max(0, params.leakyBucket.capacity - step.leakyBucket.queueSize),
+  };
+}
+
+function getSimulatedRequestStats(
+  algorithm: Algorithm,
+  steps: SimulationStep[]
+): RequestStats {
+  if (steps.length === 0) {
+    return {
+      total: 0,
+      allowed: 0,
+      blocked: 0,
+      successRate: "0.0",
+      history: [],
+    };
+  }
+  let allowed = 0;
+  let blocked = 0;
+  const history = steps.map((s) => {
+    const acc =
+      algorithm === "token-bucket"
+        ? s.tokenBucket.accepted
+        : algorithm === "sliding-window"
+        ? s.slidingWindow.accepted
+        : s.leakyBucket.accepted;
+    if (acc) allowed++;
+    else blocked++;
+    return {
+      timestamp: Date.now() - (steps.length * 1000) + s.time,
+      allowed: acc ? 1 : 0,
+      blocked: acc ? 0 : 1,
+    };
+  });
+  return {
+    total: steps.length,
+    allowed,
+    blocked,
+    successRate: ((allowed / steps.length) * 100).toFixed(1),
+    history,
+  };
+}
 
 interface RideState {
   pickup: string;
@@ -87,6 +198,7 @@ export default function RideDashboardPage() {
   );
   const [requestLog, setRequestLog] = useState<RequestLogEntry[]>([]);
   const [showLog, setShowLog] = useState(false);
+  const [isRaceMode, setIsRaceMode] = useState(false);
 
   const [toolboxOpen, setToolboxOpen] = useState(false);
   const [isApplyingConfig, setIsApplyingConfig] = useState(false);
@@ -103,6 +215,7 @@ export default function RideDashboardPage() {
   const processedRef = useRef(rideState?.skipProcessing ?? false);
   const processingRef = useRef(false);
   const draftInitializedRef = useRef(false);
+  const firstRunRef = useRef(!rideState?.skipProcessing);
 
   const simulation = useDeterministicSimulation({
     requestCount: rideState?.rideCount ?? 0,
@@ -196,6 +309,33 @@ export default function RideDashboardPage() {
     });
 
     try {
+      if (firstRunRef.current) {
+        await Promise.all([
+          updateBucketConfig(
+            {
+              capacity: DEFAULT_DASHBOARD_CONFIG_DRAFT.tb_capacity,
+              refillRate: DEFAULT_DASHBOARD_CONFIG_DRAFT.tb_refillRate,
+            },
+            "token-bucket"
+          ),
+          updateBucketConfig(
+            {
+              maxRequests: DEFAULT_DASHBOARD_CONFIG_DRAFT.sw_maxRequests,
+              windowSize: DEFAULT_DASHBOARD_CONFIG_DRAFT.sw_windowSize,
+            },
+            "sliding-window"
+          ),
+          updateBucketConfig(
+            {
+              capacity: DEFAULT_DASHBOARD_CONFIG_DRAFT.lb_capacity,
+              leakRate: DEFAULT_DASHBOARD_CONFIG_DRAFT.lb_leakRate,
+            },
+            "leaky-bucket"
+          ),
+        ]);
+        firstRunRef.current = false;
+      }
+
       await resetAllStats();
 
       const totalRides = rideState.rideCount;
@@ -344,6 +484,40 @@ export default function RideDashboardPage() {
     void startProcessing();
   }, [startProcessing]);
 
+  const handleScenarioSelect = useCallback((scenario: "flash-sale" | "ddos" | "steady") => {
+    let newDraft = { ...configDraft };
+    let nextMode: SimulationMode = "random";
+
+    if (scenario === "flash-sale") {
+      // Flash Sale: Token Bucket absorbs it entirely (high capacity). Leaky Bucket drops it immediately (Queue 1).
+      newDraft = { ...newDraft, tb_capacity: 50, tb_refillRate: 1, sw_maxRequests: 20, sw_windowSize: 5000, lb_capacity: 1, lb_leakRate: 5 };
+      nextMode = "burst";
+    } else if (scenario === "ddos") {
+      // DDoS Attack: Extremely tight constraints. Everything drops aggressively.
+      newDraft = { ...newDraft, tb_capacity: 2, tb_refillRate: 0.5, sw_maxRequests: 2, sw_windowSize: 10000, lb_capacity: 1, lb_leakRate: 0.5 };
+      nextMode = "burst";
+    } else {
+      // Steady Traffic: High refill/leak rates handle the random steady traffic easily.
+      newDraft = { ...newDraft, tb_capacity: 10, tb_refillRate: 5, sw_maxRequests: 20, sw_windowSize: 2000, lb_capacity: 5, lb_leakRate: 5 };
+      nextMode = "random";
+    }
+    
+    setConfigDraft(newDraft);
+    simulation.setMode(nextMode);
+    setIsApplyingConfig(true);
+    Promise.all([
+      tokenBucket.updateConfig({ capacity: newDraft.tb_capacity, refillRate: newDraft.tb_refillRate }),
+      slidingWindow.updateConfig({ maxRequests: newDraft.sw_maxRequests, windowSize: newDraft.sw_windowSize }),
+      leakyBucket.updateConfig({ capacity: newDraft.lb_capacity, leakRate: newDraft.lb_leakRate }),
+    ]).then(() => {
+      return Promise.all([tokenBucket.refresh(), slidingWindow.refresh(), leakyBucket.refresh()]);
+    }).then(() => {
+      setActiveSimulationParams(toSimulationParams(newDraft));
+      setIsApplyingConfig(false);
+      rerunDemo();
+    });
+  }, [configDraft, simulation, tokenBucket, slidingWindow, leakyBucket, rerunDemo]);
+
   const applyAndRerun = useCallback(() => {
     void (async () => {
       await applyToolboxConfig();
@@ -445,14 +619,15 @@ export default function RideDashboardPage() {
           predictionEnabled={predictionVisible}
           onModeChange={simulation.setMode}
           onTogglePlay={simulation.togglePlay}
-          onStep={simulation.stepForward}
-          onReset={() =>
+          onRewind={() => {
             simulation.reset({
               mode: simulation.mode,
               requestCount: rideState.rideCount,
               autoPlay: false,
-            })
-          }
+            });
+          }}
+          onStep={simulation.stepForward}
+          onReset={rerunDemo}
           onBurst={() => simulation.addBurst(6)}
           onSpeedChange={simulation.setSpeed}
           onTogglePrediction={() =>
@@ -461,64 +636,120 @@ export default function RideDashboardPage() {
         />
       </section>
 
-      <section className="workbench-layout">
-        <aside className="code-rail code-rail-left">
+      <section className="algo-tabs-container">
+        <button
+          type="button"
+          className={`tab-btn ${!isRaceMode && selectedAlgo === "token-bucket" ? "active" : ""}`}
+          onClick={() => { setIsRaceMode(false); setSelectedAlgo("token-bucket"); }}
+        >
+          Token Bucket
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${!isRaceMode && selectedAlgo === "sliding-window" ? "active" : ""}`}
+          onClick={() => { setIsRaceMode(false); setSelectedAlgo("sliding-window"); }}
+        >
+          Sliding Window
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${!isRaceMode && selectedAlgo === "leaky-bucket" ? "active" : ""}`}
+          onClick={() => { setIsRaceMode(false); setSelectedAlgo("leaky-bucket"); }}
+        >
+          Leaky Bucket
+        </button>
+        <div style={{ width: '2px', background: 'var(--color-border)', margin: '0 8px', borderRadius: '2px' }} />
+        <button
+          type="button"
+          className={`tab-btn ${isRaceMode ? "active" : ""}`}
+          onClick={() => setIsRaceMode(true)}
+          title="Watch all three algorithms react simultaneously"
+        >
+          🏁 Race Mode
+        </button>
+      </section>
+
+      {isRaceMode ? (
+        <section className="race-mode-layout" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', margin: '0 auto', maxWidth: '1200px' }}>
+          <div className="card">
+            <h3 style={{ textAlign: 'center', marginBottom: '16px' }}>Token Bucket</h3>
+            <BucketView current={hasProcessed && simulation.currentStep ? simulation.currentStep.tokenBucket.tokens : (tokenBucket.bucketStats?.tokens ?? 0)} capacity={activeSimulationParams.tokenBucket.capacity} refillRate={activeSimulationParams.tokenBucket.refillRate} algorithm="token-bucket" lastRequestSuccess={hasProcessed ? simulation.currentStep?.tokenBucket.accepted ?? null : tbLastSuccess} />
+          </div>
+          <div className="card">
+            <h3 style={{ textAlign: 'center', marginBottom: '16px' }}>Sliding Window</h3>
+            <WindowView currentCount={hasProcessed && simulation.currentStep ? simulation.currentStep.slidingWindow.count : (slidingWindow.bucketStats?.currentCount ?? 0)} maxRequests={activeSimulationParams.slidingWindow.maxRequests} windowSize={activeSimulationParams.slidingWindow.windowSize} lastRequestSuccess={hasProcessed ? simulation.currentStep?.slidingWindow.accepted ?? null : swLastSuccess} />
+          </div>
+          <div className="card">
+            <h3 style={{ textAlign: 'center', marginBottom: '16px' }}>Leaky Bucket</h3>
+            <LeakyBucketView currentLevel={hasProcessed && simulation.currentStep ? simulation.currentStep.leakyBucket.queueSize : (leakyBucket.bucketStats?.currentLevel ?? 0)} capacity={activeSimulationParams.leakyBucket.capacity} leakRate={activeSimulationParams.leakyBucket.leakRate} lastRequestSuccess={hasProcessed ? simulation.currentStep?.leakyBucket.accepted ?? null : lbLastSuccess} />
+          </div>
+        </section>
+      ) : (
+        <section className="workbench-layout single-algo-layout">
+        <aside className="code-rail">
           <AlgorithmCodeCard
-            algorithm="token-bucket"
-            step={simulation.currentStep}
-            prediction={
-              predictionVisible ? simulation.prediction?.tokenBucket ?? null : null
-            }
-          />
-          <AlgorithmCodeCard
-            algorithm="sliding-window"
+            algorithm={selectedAlgo}
             step={simulation.currentStep}
             prediction={
               predictionVisible
-                ? simulation.prediction?.slidingWindow ?? null
+                ? selectedAlgo === "token-bucket"
+                  ? simulation.prediction?.tokenBucket ?? null
+                  : selectedAlgo === "sliding-window"
+                    ? simulation.prediction?.slidingWindow ?? null
+                    : simulation.prediction?.leakyBucket ?? null
                 : null
             }
           />
         </aside>
 
-        <section className="algo-comparison">
+        <section className="algo-comparison single-panel">
           <AlgorithmPanel
-            algorithm="token-bucket"
-            requestStats={tokenBucket.requestStats}
-            bucketStats={tokenBucket.bucketStats}
-            lastRequestSuccess={tbLastSuccess}
-            retryAfter={tbRetryAfter}
-            simulationStep={simulation.currentStep}
-          />
-
-          <AlgorithmPanel
-            algorithm="sliding-window"
-            requestStats={slidingWindow.requestStats}
-            bucketStats={slidingWindow.bucketStats}
-            lastRequestSuccess={swLastSuccess}
-            retryAfter={swRetryAfter}
-            simulationStep={simulation.currentStep}
-          />
-
-          <AlgorithmPanel
-            algorithm="leaky-bucket"
-            requestStats={leakyBucket.requestStats}
-            bucketStats={leakyBucket.bucketStats}
-            lastRequestSuccess={lbLastSuccess}
-            retryAfter={lbRetryAfter}
+            algorithm={selectedAlgo}
+            requestStats={
+              hasProcessed
+                ? getSimulatedRequestStats(selectedAlgo, simulation.steps.slice(0, simulation.cursorIndex))
+                : selectedAlgo === "token-bucket"
+                ? tokenBucket.requestStats
+                : selectedAlgo === "sliding-window"
+                ? slidingWindow.requestStats
+                : leakyBucket.requestStats
+            }
+            bucketStats={
+              hasProcessed
+                ? getSimulatedBucketStats(selectedAlgo, simulation.steps, simulation.cursorIndex, activeSimulationParams)
+                : selectedAlgo === "token-bucket"
+                ? tokenBucket.bucketStats
+                : selectedAlgo === "sliding-window"
+                ? slidingWindow.bucketStats
+                : leakyBucket.bucketStats
+            }
+            lastRequestSuccess={
+              hasProcessed
+                ? (selectedAlgo === "token-bucket"
+                  ? simulation.currentStep?.tokenBucket.accepted
+                  : selectedAlgo === "sliding-window"
+                  ? simulation.currentStep?.slidingWindow.accepted
+                  : simulation.currentStep?.leakyBucket.accepted) ?? null
+                : selectedAlgo === "token-bucket"
+                ? tbLastSuccess
+                : selectedAlgo === "sliding-window"
+                ? swLastSuccess
+                : lbLastSuccess
+            }
+            retryAfter={
+              hasProcessed
+                ? undefined
+                : selectedAlgo === "token-bucket"
+                ? tbRetryAfter
+                : selectedAlgo === "sliding-window"
+                ? swRetryAfter
+                : lbRetryAfter
+            }
             simulationStep={simulation.currentStep}
           />
         </section>
 
         <aside className="code-rail code-rail-right">
-          <AlgorithmCodeCard
-            algorithm="leaky-bucket"
-            step={simulation.currentStep}
-            prediction={
-              predictionVisible ? simulation.prediction?.leakyBucket ?? null : null
-            }
-          />
-
           {predictionVisible && simulation.prediction && (
             <section className="prediction-card card">
               <h3>Prediction Mode</h3>
@@ -577,6 +808,7 @@ export default function RideDashboardPage() {
           )}
         </aside>
       </section>
+      )}
 
       {hasProcessed &&
         tokenBucket.requestStats &&
@@ -740,7 +972,6 @@ export default function RideDashboardPage() {
         isApplying={isApplyingConfig}
         onToggleOpen={handleToggleToolbox}
         onClose={() => setToolboxOpen(false)}
-        onSelectAlgo={setSelectedAlgo}
         onDraftChange={(key, value) => {
           setConfigDraft((previous) => ({
             ...previous,
@@ -753,6 +984,7 @@ export default function RideDashboardPage() {
         onApplyAndRerun={applyAndRerun}
         onRerun={rerunDemo}
         onSyncFromLive={syncDraftFromLive}
+        onScenarioSelect={handleScenarioSelect}
       />
     </div>
   );

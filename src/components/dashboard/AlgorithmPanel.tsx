@@ -106,7 +106,7 @@ export default function AlgorithmPanel({
 
       <p className="algo-live-state">{getSimulationSummary(algorithm, simulationStep)}</p>
 
-      <div className="card">
+      <div className="card card-stats">
         <h3>Statistics</h3>
         {requestStats ? (
           <StatsPanel
@@ -130,7 +130,7 @@ export default function AlgorithmPanel({
         <RequestChart history={requestStats?.history ?? []} maxPoints={30} />
       </div>
 
-      <div className="card">
+      <div className="card card-capacity">
         <h3>{getCapacityTitle(algorithm)}</h3>
         {renderCapacityCard(algorithm, bucketStats, lastRequestSuccess)}
       </div>

@@ -132,6 +132,40 @@ function getSnapshotCaption(
   return `queue=${leakySnapshot.queueSize.toFixed(2)}/${leakySnapshot.capacity}, leak=${leakySnapshot.leakRate}/s`;
 }
 
+function getDebugTrace(algorithm: Algorithm, step: SimulationStep) {
+  if (algorithm === "token-bucket") {
+    const s = step.tokenBucket;
+    return (
+      <>
+        <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> <code>tokens = min({s.capacity}, tokens + elapsed * {s.refillRate})</code></div>
+        <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> <code>tokens ({s.tokens.toFixed(2)}) &gt;= 1</code> &rarr; <strong>{s.accepted ? "TRUE" : "FALSE"}</strong></div>
+        <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> Decision: <span className={s.accepted ? "trace-allow" : "trace-block"}>{s.accepted ? "ACCEPT" : "REJECT"}</span></div>
+        {!s.accepted && <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> Retry after: <strong>{s.retryAfter.toFixed(2)}s</strong></div>}
+      </>
+    );
+  }
+  if (algorithm === "sliding-window") {
+    const s = step.slidingWindow;
+    return (
+      <>
+        <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> Pruning window... Active count = <strong>{s.count}</strong></div>
+        <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> <code>activeCount ({s.count}) &lt; maxRequests ({s.maxRequests})</code> &rarr; <strong>{s.accepted ? "TRUE" : "FALSE"}</strong></div>
+        <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> Decision: <span className={s.accepted ? "trace-allow" : "trace-block"}>{s.accepted ? "ACCEPT" : "REJECT"}</span></div>
+        {!s.accepted && <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> Retry after: <strong>{s.retryAfter.toFixed(2)}s</strong></div>}
+      </>
+    );
+  }
+  const s = step.leakyBucket;
+  return (
+    <>
+      <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> <code>queue = max(0, queue - elapsed * {s.leakRate})</code></div>
+      <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> <code>queue ({s.queueSize.toFixed(2)}) + 1 &lt;= capacity ({s.capacity})</code> &rarr; <strong>{s.accepted ? "TRUE" : "FALSE"}</strong></div>
+      <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> Decision: <span className={s.accepted ? "trace-allow" : "trace-block"}>{s.accepted ? "ACCEPT" : "REJECT"}</span></div>
+      {!s.accepted && <div className="trace-line"><span className="trace-prefix">[DEBUG]</span> Retry after: <strong>{s.retryAfter.toFixed(2)}s</strong></div>}
+    </>
+  );
+}
+
 export default function AlgorithmCodeCard({
   algorithm,
   step,
@@ -180,6 +214,15 @@ export default function AlgorithmCodeCard({
         <p className="algo-code-predict">
           Next: {prediction.accepted ? "likely accept" : "likely reject"} because {prediction.reason}.
         </p>
+      )}
+
+      {step && (
+        <div className="algo-code-trace">
+          <h4 style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Execution Trace</h4>
+          <div className="trace-content" style={{ background: "rgba(0, 0, 0, 0.2)", padding: "12px", borderRadius: "4px", fontSize: "0.85rem", borderLeft: `3px solid ${accepted ? "var(--color-success)" : "var(--color-error)"}` }}>
+            {getDebugTrace(algorithm, step)}
+          </div>
+        </div>
       )}
     </article>
   );

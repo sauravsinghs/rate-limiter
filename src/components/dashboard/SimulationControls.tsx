@@ -8,6 +8,7 @@ interface SimulationControlsProps {
   predictionEnabled: boolean;
   onModeChange: (mode: SimulationMode) => void;
   onTogglePlay: () => void;
+  onRewind: () => void;
   onStep: () => void;
   onReset: () => void;
   onBurst: () => void;
@@ -23,6 +24,7 @@ export default function SimulationControls({
   predictionEnabled,
   onModeChange,
   onTogglePlay,
+  onRewind,
   onStep,
   onReset,
   onBurst,
@@ -35,11 +37,14 @@ export default function SimulationControls({
         <button type="button" className="btn btn-primary" onClick={onTogglePlay} disabled={!canStep}>
           {isPlaying ? "Pause" : "Play"}
         </button>
+        <button type="button" className="btn btn-outline" onClick={onRewind}>
+          Rewind
+        </button>
         <button type="button" className="btn btn-outline" onClick={onStep} disabled={!canStep || isPlaying}>
           Step
         </button>
         <button type="button" className="btn btn-outline" onClick={onReset}>
-          Reset
+          Reset Session
         </button>
         <button type="button" className="btn btn-outline" onClick={onBurst}>
           Burst +6
