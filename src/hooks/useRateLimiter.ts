@@ -128,7 +128,13 @@ export function useRateLimiter(options: UseRateLimiterOptions = {}) {
   }, [algorithm, fetchBucketStats, fetchRequestStats]);
 
   const updateConfig = useCallback(
-    async (config: { capacity?: number; refillRate?: number }) => {
+    async (config: {
+      capacity?: number;
+      refillRate?: number;
+      maxRequests?: number;
+      windowSize?: number;
+      leakRate?: number;
+    }) => {
       try {
         await updateBucketConfig(config, algorithm);
         await fetchBucketStats();

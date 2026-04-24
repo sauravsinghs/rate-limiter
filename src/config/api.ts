@@ -20,6 +20,13 @@ export const API_ENDPOINTS = {
   STATS_SLIDING_RESET: `${API_BASE_URL}/api/stats-sliding/reset`,
   STATS_SLIDING_CONFIG: `${API_BASE_URL}/api/stats-sliding/config`,
 
+  // Leaky Bucket endpoints
+  TEST_LEAKY: `${API_BASE_URL}/api/test-leaky`,
+  STATS_LEAKY_BUCKET: `${API_BASE_URL}/api/stats-leaky/bucket`,
+  STATS_LEAKY_REQUESTS: `${API_BASE_URL}/api/stats-leaky/requests`,
+  STATS_LEAKY_RESET: `${API_BASE_URL}/api/stats-leaky/reset`,
+  STATS_LEAKY_CONFIG: `${API_BASE_URL}/api/stats-leaky/config`,
+
   HEALTH: `${API_BASE_URL}/health`
 };
 
