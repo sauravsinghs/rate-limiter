@@ -35,15 +35,22 @@ Set these in Render service settings:
 Do not set `PORT`; Render injects it automatically.
 
 ### 3) Health endpoint
-- Health path: `/health`
+- Preferred health path: `/api/health`
+- Also available: `/health`
 - Expected HTTP: `200`
 
 ### 4) GitHub Actions secrets for auto deploy
 Add repository secrets:
 - `RENDER_DEPLOY_HOOK_URL` -> Render deploy hook URL
-- `RENDER_HEALTHCHECK_URL` -> `https://<your-render-domain>/health` (optional but recommended)
+- `RENDER_HEALTHCHECK_URL` -> `https://<your-render-domain>/api/health` (optional but recommended)
+- Optional fallback: `RENDER_SERVICE_URL` -> `https://<your-render-domain>` (workflow appends `/api/health`)
 
 The deploy workflow will:
 1. Run tests/build
 2. Trigger Render deploy hook on push to `main/master`
 3. Poll health URL if `RENDER_HEALTHCHECK_URL` is set
+
+### Troubleshooting: health returns 404
+- If app root works but `/health` returns `Not Found`, check `/api/health`.
+- Trigger **Manual Deploy -> Clear build cache & deploy** in Render.
+- Recheck logs for startup lines showing enabled health endpoints.

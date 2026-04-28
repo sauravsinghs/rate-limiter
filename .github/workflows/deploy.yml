@@ -48,15 +48,22 @@ jobs:
       - name: Post-deploy health smoke check
         env:
           RENDER_HEALTHCHECK_URL: ${{ secrets.RENDER_HEALTHCHECK_URL }}
+          RENDER_SERVICE_URL: ${{ secrets.RENDER_SERVICE_URL }}
         run: |
-          if [ -z "$RENDER_HEALTHCHECK_URL" ]; then
-            echo "RENDER_HEALTHCHECK_URL not configured; skipping smoke check."
+          target_url="$RENDER_HEALTHCHECK_URL"
+
+          if [ -z "$target_url" ] && [ -n "$RENDER_SERVICE_URL" ]; then
+            target_url="${RENDER_SERVICE_URL%/}/api/health"
+          fi
+
+          if [ -z "$target_url" ]; then
+            echo "RENDER_HEALTHCHECK_URL (preferred) or RENDER_SERVICE_URL not configured; skipping smoke check."
             exit 0
           fi
 
-          echo "Polling $RENDER_HEALTHCHECK_URL for readiness..."
+          echo "Polling $target_url for readiness..."
           for i in $(seq 1 20); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_HEALTHCHECK_URL")
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$target_url")
             if [ "$code" = "200" ]; then
               echo "Health check passed."
               exit 0
