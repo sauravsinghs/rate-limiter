@@ -3,9 +3,9 @@
 # Stage 1: Build frontend
 FROM node:18-alpine AS frontend-builder
 WORKDIR /app/frontend
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm ci
-COPY . .
+COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build backend
@@ -30,7 +30,8 @@ RUN npm install -g serve
 
 # Expose ports
 EXPOSE 3001
+EXPOSE 3000
 
 # Start both services
 WORKDIR /app/backend
-CMD ["sh", "-c", "node server.js & serve -s ../public -l 3000 & wait"]
+CMD ["sh", "-c", "node server.js & serve -s ./public -l 3000 & wait"]

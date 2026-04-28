@@ -23,7 +23,7 @@ export default function RequestTimeline({
   const processed = Math.min(activeIndex, total);
 
   return (
-    <div className="request-timeline">
+    <div className="request-timeline" data-tutorial="timeline">
       <div className="timeline-header">
         <div>
           <h2>Shared Request Timeline</h2>
@@ -39,7 +39,7 @@ export default function RequestTimeline({
         </div>
       </div>
 
-      <div className="timeline-track" role="list" aria-label="Request timeline">
+      <div className="timeline-track" role="list" aria-label="Request timeline" data-tutorial="timeline-track">
         {events.map((event, index) => {
           const stateClass =
             index < activeIndex

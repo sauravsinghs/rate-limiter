@@ -32,21 +32,21 @@ export default function SimulationControls({
   onTogglePrediction,
 }: SimulationControlsProps) {
   return (
-    <div className="simulation-controls">
+    <div className="simulation-controls" data-tutorial="simulation-controls">
       <div className="simulation-buttons">
-        <button type="button" className="btn btn-primary" onClick={onTogglePlay} disabled={!canStep}>
+        <button type="button" className="btn btn-primary" onClick={onTogglePlay} disabled={!canStep} data-tutorial="control-play">
           {isPlaying ? "Pause" : "Play"}
         </button>
         <button type="button" className="btn btn-outline" onClick={onRewind}>
           Rewind
         </button>
-        <button type="button" className="btn btn-outline" onClick={onStep} disabled={!canStep || isPlaying}>
+        <button type="button" className="btn btn-outline" onClick={onStep} disabled={!canStep || isPlaying} data-tutorial="control-step">
           Step
         </button>
         <button type="button" className="btn btn-outline" onClick={onReset}>
           Reset Session
         </button>
-        <button type="button" className="btn btn-outline" onClick={onBurst}>
+        <button type="button" className="btn btn-outline" onClick={onBurst} data-tutorial="control-burst">
           Burst +6
         </button>
       </div>
@@ -58,6 +58,7 @@ export default function SimulationControls({
             className="form-select"
             value={mode}
             onChange={(event) => onModeChange(event.target.value as SimulationMode)}
+            data-tutorial="control-mode"
           >
             <option value="random">Random</option>
             <option value="burst">Burst</option>
@@ -76,7 +77,7 @@ export default function SimulationControls({
           />
         </label>
 
-        <button type="button" className="btn btn-outline" onClick={onTogglePrediction}>
+        <button type="button" className="btn btn-outline" onClick={onTogglePrediction} data-tutorial="control-prediction">
           {predictionEnabled ? "Hide Prediction" : "Show Prediction"}
         </button>
       </div>

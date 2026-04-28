@@ -186,7 +186,7 @@ export default function AlgorithmCodeCard({
   const statusLabel = accepted === null ? "Waiting" : accepted ? "Accepted" : "Rejected";
 
   return (
-    <article className={`algo-code-card card ${accepted === null ? "code-idle" : accepted ? "code-allow" : "code-block"}`}>
+    <article className={`algo-code-card card ${accepted === null ? "code-idle" : accepted ? "code-allow" : "code-block"}`} data-tutorial="code-card">
       <header className="algo-code-head">
         <h3>{ALGORITHM_LABELS[algorithm]}</h3>
         <span className="algo-code-status">{statusLabel}</span>
@@ -211,7 +211,7 @@ export default function AlgorithmCodeCard({
       </div>
 
       {prediction && (
-        <p className="algo-code-predict">
+        <p className="algo-code-predict" data-tutorial="code-prediction">
           Next: {prediction.accepted ? "likely accept" : "likely reject"} because {prediction.reason}.
         </p>
       )}
