@@ -13,8 +13,26 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
+const configuredOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow non-browser/healthcheck requests and same-origin deployments.
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (configuredOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true
 }));
 app.use(express.json());

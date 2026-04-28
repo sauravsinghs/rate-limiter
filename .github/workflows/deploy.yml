@@ -29,25 +29,41 @@ jobs:
       - name: Test backend
         run: cd backend && npm test || echo "No tests configured yet"
 
-  deployment-test:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v3
-      - name: Deployment smoke check (PR)
-        run: |
-          echo "Running deployment smoke checks for PR..."
-          echo "Add preview/deployment validation commands here."
-
   deploy:
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Deploy to production
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          echo "Add your deployment commands here"
-          echo "Examples: Railway, Render, Vercel, etc."
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL secret is not configured."
+            exit 1
+          fi
+
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+
+      - name: Post-deploy health smoke check
+        env:
+          RENDER_HEALTHCHECK_URL: ${{ secrets.RENDER_HEALTHCHECK_URL }}
+        run: |
+          if [ -z "$RENDER_HEALTHCHECK_URL" ]; then
+            echo "RENDER_HEALTHCHECK_URL not configured; skipping smoke check."
+            exit 0
+          fi
+
+          echo "Polling $RENDER_HEALTHCHECK_URL for readiness..."
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_HEALTHCHECK_URL")
+            if [ "$code" = "200" ]; then
+              echo "Health check passed."
+              exit 0
+            fi
+            echo "Attempt $i/20: received HTTP $code, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Health check failed after retries."
+          exit 1
