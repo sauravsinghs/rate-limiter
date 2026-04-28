@@ -6,7 +6,7 @@
 
 import API_ENDPOINTS from '../config/api';
 
-export type Algorithm = 'token-bucket' | 'sliding-window';
+export type Algorithm = 'token-bucket' | 'sliding-window' | 'leaky-bucket';
 
 export interface BucketStats {
   tokens: number;
@@ -16,6 +16,9 @@ export interface BucketStats {
   algorithm?: string;
   windowSize?: number;
   currentCount?: number;
+  leakRate?: number;
+  currentLevel?: number;
+  queueRemaining?: number;
 }
 
 export interface RequestStats {
@@ -39,6 +42,10 @@ export interface TestResponse {
   currentCount?: number;
   windowRemaining?: number;
   maxRequests?: number;
+  currentLevel?: number;
+  queueRemaining?: number;
+  leakRate?: number;
+  capacity?: number;
 }
 
 export interface RateLimitError {
@@ -59,6 +66,15 @@ function getEndpoints(algorithm: Algorithm) {
       requests: API_ENDPOINTS.STATS_SLIDING_REQUESTS,
       reset: API_ENDPOINTS.STATS_SLIDING_RESET,
       config: API_ENDPOINTS.STATS_SLIDING_CONFIG
+    };
+  }
+  if (algorithm === 'leaky-bucket') {
+    return {
+      test: API_ENDPOINTS.TEST_LEAKY,
+      bucket: API_ENDPOINTS.STATS_LEAKY_BUCKET,
+      requests: API_ENDPOINTS.STATS_LEAKY_REQUESTS,
+      reset: API_ENDPOINTS.STATS_LEAKY_RESET,
+      config: API_ENDPOINTS.STATS_LEAKY_CONFIG,
     };
   }
   return {
@@ -130,7 +146,8 @@ export async function resetStats(algorithm: Algorithm = 'token-bucket'): Promise
 export async function resetAllStats(): Promise<void> {
   await Promise.all([
     resetStats('token-bucket'),
-    resetStats('sliding-window')
+    resetStats('sliding-window'),
+    resetStats('leaky-bucket'),
   ]);
 }
 
@@ -140,7 +157,17 @@ export async function resetAllStats(): Promise<void> {
 export async function updateBucketConfig(config: {
   capacity?: number;
   refillRate?: number;
-}, algorithm: Algorithm = 'token-bucket'): Promise<{ message: string; capacity: number; refillRate: number }> {
+  maxRequests?: number;
+  windowSize?: number;
+  leakRate?: number;
+}, algorithm: Algorithm = 'token-bucket'): Promise<{
+  message: string;
+  capacity?: number;
+  refillRate?: number;
+  maxRequests?: number;
+  windowSize?: number;
+  leakRate?: number;
+}> {
   const endpoints = getEndpoints(algorithm);
   const response = await fetch(endpoints.config, {
     method: 'POST',

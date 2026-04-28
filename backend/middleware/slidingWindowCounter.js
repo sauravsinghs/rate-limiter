@@ -100,4 +100,24 @@ export class SlidingWindowCounter {
     reset() {
         this.requestLog = [];
     }
+
+    /**
+     * Update sliding-window parameters dynamically
+     */
+    updateConfig({ maxRequests, windowSize }) {
+        if (maxRequests !== undefined) {
+            const nextMax = Number(maxRequests);
+            if (Number.isFinite(nextMax) && nextMax > 0) {
+                this.maxRequests = nextMax;
+            }
+        }
+
+        if (windowSize !== undefined) {
+            const nextWindow = Number(windowSize);
+            if (Number.isFinite(nextWindow) && nextWindow >= 100) {
+                this.windowSize = nextWindow;
+                this._prune(Date.now());
+            }
+        }
+    }
 }

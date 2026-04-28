@@ -94,13 +94,20 @@ export class TokenBucket {
    */
   updateConfig({ capacity, refillRate }) {
     if (capacity !== undefined) {
-      this.capacity = capacity;
-      // Adjust tokens proportionally if capacity changed
-      const ratio = capacity / this.capacity;
-      this.tokens = Math.min(capacity, this.tokens * ratio);
+      const previousCapacity = this.capacity;
+      const nextCapacity = Number(capacity);
+      if (Number.isFinite(nextCapacity) && nextCapacity > 0) {
+        this.capacity = nextCapacity;
+        // Keep token ratio stable when capacity changes.
+        const ratio = previousCapacity > 0 ? this.tokens / previousCapacity : 1;
+        this.tokens = Math.min(this.capacity, Math.max(0, ratio * this.capacity));
+      }
     }
     if (refillRate !== undefined) {
-      this.refillRate = refillRate;
+      const nextRefillRate = Number(refillRate);
+      if (Number.isFinite(nextRefillRate) && nextRefillRate > 0) {
+        this.refillRate = nextRefillRate;
+      }
     }
   }
 }

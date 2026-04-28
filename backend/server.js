@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { TokenBucket } from './middleware/tokenBucket.js';
 import { SlidingWindowCounter } from './middleware/slidingWindowCounter.js';
+import { LeakyBucket } from './middleware/leakyBucket.js';
 import { rateLimiterMiddleware } from './middleware/rateLimiter.js';
 import { statsRouter } from './routes/stats.js';
 
@@ -42,6 +43,21 @@ const globalSlidingWindow = new SlidingWindowCounter({
 });
 
 export const slidingStats = {
+  totalRequests: 0,
+  allowedRequests: 0,
+  blockedRequests: 0,
+  history: []
+};
+
+// ========================================
+// Algorithm 3: Leaky Bucket
+// ========================================
+const globalLeakyBucket = new LeakyBucket({
+  capacity: parseInt(process.env.LEAKY_CAPACITY || '10'),
+  leakRate: parseFloat(process.env.LEAK_RATE || '1.0')
+});
+
+export const leakyStats = {
   totalRequests: 0,
   allowedRequests: 0,
   blockedRequests: 0,
@@ -115,10 +131,57 @@ app.post('/api/test-sliding', (req, res, next) => {
 });
 
 // ========================================
+// Leaky Bucket endpoint
+// ========================================
+app.post('/api/test-leaky', (req, res) => {
+  const result = globalLeakyBucket.tryConsume();
+
+  if (!result.allowed) {
+    leakyStats.totalRequests++;
+    leakyStats.blockedRequests++;
+
+    const timestamp = Date.now();
+    leakyStats.history.push({ timestamp, allowed: 0, blocked: 1 });
+    if (leakyStats.history.length > 1000) {
+      leakyStats.history.shift();
+    }
+
+    return res.status(429).json({
+      success: false,
+      message: 'Rate limit exceeded (Leaky Bucket)',
+      retryAfter: result.retryAfter || 1,
+      timestamp,
+      currentLevel: result.currentLevel,
+      queueRemaining: result.queueRemaining
+    });
+  }
+
+  leakyStats.totalRequests++;
+  leakyStats.allowedRequests++;
+
+  const timestamp = Date.now();
+  leakyStats.history.push({ timestamp, allowed: 1, blocked: 0 });
+  if (leakyStats.history.length > 1000) {
+    leakyStats.history.shift();
+  }
+
+  res.json({
+    success: true,
+    message: 'Request accepted into leaky queue',
+    timestamp,
+    currentLevel: result.currentLevel,
+    queueRemaining: result.queueRemaining,
+    leakRate: globalLeakyBucket.getLeakRate(),
+    capacity: globalLeakyBucket.getCapacity()
+  });
+});
+
+// ========================================
 // Stats endpoints
 // ========================================
 app.use('/api/stats', statsRouter(globalTokenBucket, requestStats));
 app.use('/api/stats-sliding', statsRouter(globalSlidingWindow, slidingStats, 'sliding-window'));
+app.use('/api/stats-leaky', statsRouter(globalLeakyBucket, leakyStats, 'leaky-bucket'));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -129,7 +192,8 @@ app.get('/health', (req, res) => {
       capacity: globalTokenBucket.getCapacity(),
       refillRate: globalTokenBucket.getRefillRate()
     },
-    slidingWindow: globalSlidingWindow.getStats()
+    slidingWindow: globalSlidingWindow.getStats(),
+    leakyBucket: globalLeakyBucket.getStats()
   });
 });
 
@@ -156,4 +220,5 @@ app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
   console.log(`Token Bucket: ${globalTokenBucket.getCapacity()} tokens, ${globalTokenBucket.getRefillRate()}/sec refill`);
   console.log(`Sliding Window: ${globalSlidingWindow.getMaxRequests()} requests per ${globalSlidingWindow.getWindowSize()}ms window`);
+  console.log(`Leaky Bucket: ${globalLeakyBucket.getCapacity()} queue capacity, ${globalLeakyBucket.getLeakRate()}/sec leak`);
 });

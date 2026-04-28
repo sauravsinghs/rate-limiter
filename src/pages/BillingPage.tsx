@@ -23,6 +23,11 @@ interface BillingState {
     sw_allowedRequests: number;
     sw_blockedRequests: number;
     sw_successRate: string;
+    // Leaky Bucket
+    lb_totalRequests: number;
+    lb_allowedRequests: number;
+    lb_blockedRequests: number;
+    lb_successRate: string;
 }
 
 export default function BillingPage() {
@@ -40,8 +45,10 @@ export default function BillingPage() {
 
     const tbFare = billing.tb_allowedRequests * billing.farePerRide;
     const swFare = billing.sw_allowedRequests * billing.farePerRide;
+    const lbFare = billing.lb_allowedRequests * billing.farePerRide;
     const tbSuccessRate = parseFloat(billing.tb_successRate) || 0;
     const swSuccessRate = parseFloat(billing.sw_successRate) || 0;
+    const lbSuccessRate = parseFloat(billing.lb_successRate) || 0;
 
     const handleBookAgain = async () => {
         try {
@@ -118,31 +125,37 @@ export default function BillingPage() {
                         <span>Metric</span>
                         <span>Token Bucket</span>
                         <span>Sliding Window</span>
+                        <span>Leaky Bucket</span>
                     </div>
                     <div className="comparison-row">
                         <span>Total Requests</span>
                         <span>{billing.tb_totalRequests}</span>
                         <span>{billing.sw_totalRequests}</span>
+                        <span>{billing.lb_totalRequests}</span>
                     </div>
                     <div className="comparison-row">
                         <span>Bookings Confirmed</span>
                         <span className="stat-success">{billing.tb_allowedRequests}</span>
                         <span className="stat-success">{billing.sw_allowedRequests}</span>
+                        <span className="stat-success">{billing.lb_allowedRequests}</span>
                     </div>
                     <div className="comparison-row">
                         <span>Bookings Rejected</span>
                         <span className="stat-danger">{billing.tb_blockedRequests}</span>
                         <span className="stat-danger">{billing.sw_blockedRequests}</span>
+                        <span className="stat-danger">{billing.lb_blockedRequests}</span>
                     </div>
                     <div className="comparison-row">
                         <span>Success Rate</span>
                         <span>{tbSuccessRate.toFixed(1)}%</span>
                         <span>{swSuccessRate.toFixed(1)}%</span>
+                        <span>{lbSuccessRate.toFixed(1)}%</span>
                     </div>
                     <div className="comparison-row comparison-row-highlight">
                         <span>Fare Charged</span>
                         <span>₹{tbFare}</span>
                         <span>₹{swFare}</span>
+                        <span>₹{lbFare}</span>
                     </div>
                 </div>
             </section>
@@ -171,6 +184,18 @@ export default function BillingPage() {
                     <div className="explain-stat">
                         <span className="explain-allowed">{billing.sw_allowedRequests}</span> confirmed,{" "}
                         <span className="explain-blocked">{billing.sw_blockedRequests}</span> rejected
+                    </div>
+                </div>
+                <div className="algo-explain-card">
+                    <h3>Leaky Bucket</h3>
+                    <p>
+                        Requests are queued in a bucket and drained at a constant leak rate.
+                        This keeps output stable and predictable but can reject bursts when the
+                        queue fills up.
+                    </p>
+                    <div className="explain-stat">
+                        <span className="explain-allowed">{billing.lb_allowedRequests}</span> confirmed,{" "}
+                        <span className="explain-blocked">{billing.lb_blockedRequests}</span> rejected
                     </div>
                 </div>
             </section>

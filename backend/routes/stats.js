@@ -1,10 +1,10 @@
 import { Router } from 'express';
 
 /**
- * Generic stats router - works with both Token Bucket and Sliding Window
- * @param {Object} limiter - Rate limiter instance (TokenBucket or SlidingWindowCounter)
+ * Generic stats router - works with Token Bucket, Sliding Window, and Leaky Bucket
+ * @param {Object} limiter - Rate limiter instance
  * @param {Object} requestStats - Stats tracking object
- * @param {string} type - 'token-bucket' or 'sliding-window'
+ * @param {string} type - 'token-bucket' | 'sliding-window' | 'leaky-bucket'
  */
 export function statsRouter(limiter, requestStats, type = 'token-bucket') {
   const router = Router();
@@ -21,6 +21,18 @@ export function statsRouter(limiter, requestStats, type = 'token-bucket') {
         algorithm: 'sliding-window',
         windowSize: stats.windowSize,
         currentCount: stats.currentCount
+      });
+    } else if (type === 'leaky-bucket') {
+      const stats = limiter.getStats();
+      res.json({
+        tokens: stats.queueRemaining,
+        capacity: stats.capacity,
+        refillRate: stats.leakRate,
+        utilization: stats.utilization,
+        algorithm: 'leaky-bucket',
+        leakRate: stats.leakRate,
+        currentLevel: stats.currentLevel,
+        queueRemaining: stats.queueRemaining
       });
     } else {
       res.json({
@@ -61,17 +73,43 @@ export function statsRouter(limiter, requestStats, type = 'token-bucket') {
 
   // Update configuration dynamically
   router.post('/config', (req, res) => {
-    const { capacity, refillRate } = req.body;
+    const { capacity, refillRate, maxRequests, windowSize, leakRate } = req.body;
 
     if (type === 'sliding-window') {
-      // For sliding window, capacity = maxRequests
-      if (capacity !== undefined) {
-        limiter.maxRequests = capacity;
+      const nextMaxRequests = maxRequests ?? capacity;
+
+      if (nextMaxRequests !== undefined && (isNaN(nextMaxRequests) || Number(nextMaxRequests) < 1)) {
+        return res.status(400).json({ error: 'Invalid maxRequests (must be >= 1)' });
       }
+      if (windowSize !== undefined && (isNaN(windowSize) || Number(windowSize) < 100)) {
+        return res.status(400).json({ error: 'Invalid windowSize (must be >= 100 ms)' });
+      }
+
+      limiter.updateConfig({
+        maxRequests: nextMaxRequests,
+        windowSize,
+      });
+
       res.json({
         message: 'Sliding window configuration updated',
         maxRequests: limiter.getMaxRequests(),
         windowSize: limiter.getWindowSize()
+      });
+    } else if (type === 'leaky-bucket') {
+      if (capacity !== undefined && (isNaN(capacity) || Number(capacity) < 1)) {
+        return res.status(400).json({ error: 'Invalid capacity (must be >= 1)' });
+      }
+      if (leakRate !== undefined && (isNaN(leakRate) || Number(leakRate) <= 0)) {
+        return res.status(400).json({ error: 'Invalid leakRate (must be > 0)' });
+      }
+
+      limiter.updateConfig({ capacity, leakRate });
+      const stats = limiter.getStats();
+
+      res.json({
+        message: 'Leaky bucket configuration updated',
+        capacity: stats.capacity,
+        leakRate: stats.leakRate
       });
     } else {
       if (capacity !== undefined && (isNaN(capacity) || capacity < 1)) {

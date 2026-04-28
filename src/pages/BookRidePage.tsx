@@ -239,7 +239,7 @@ export default function BookRidePage() {
                     Book for {rideCount} {rideCount > 1 ? "People" : "Person"} Now
                 </button>
                 <p className="book-action-hint">
-                    Bookings will be processed through the Token Bucket rate limiter
+                    Bookings will be processed through Token Bucket, Sliding Window, and Leaky Bucket
                 </p>
             </section>
         </div>
