@@ -208,9 +208,8 @@ app.use('/api/stats', statsRouter(globalTokenBucket, requestStats));
 app.use('/api/stats-sliding', statsRouter(globalSlidingWindow, slidingStats, 'sliding-window'));
 app.use('/api/stats-leaky', statsRouter(globalLeakyBucket, leakyStats, 'leaky-bucket'));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({
+function buildHealthPayload() {
+  return {
     status: 'healthy',
     tokenBucket: {
       tokens: globalTokenBucket.getTokens(),
@@ -219,7 +218,16 @@ app.get('/health', (req, res) => {
     },
     slidingWindow: globalSlidingWindow.getStats(),
     leakyBucket: globalLeakyBucket.getStats()
-  });
+  };
+}
+
+// Health checks
+app.get('/health', (req, res) => {
+  res.json(buildHealthPayload());
+});
+
+app.get('/api/health', (req, res) => {
+  res.json(buildHealthPayload());
 });
 
 // Serve built frontend when available (production container/runtime).
@@ -258,4 +266,6 @@ app.listen(PORT, () => {
   console.log(`Token Bucket: ${globalTokenBucket.getCapacity()} tokens, ${globalTokenBucket.getRefillRate()}/sec refill`);
   console.log(`Sliding Window: ${globalSlidingWindow.getMaxRequests()} requests per ${globalSlidingWindow.getWindowSize()}ms window`);
   console.log(`Leaky Bucket: ${globalLeakyBucket.getCapacity()} queue capacity, ${globalLeakyBucket.getLeakRate()}/sec leak`);
+  console.log(`Static frontend bundle found: ${fs.existsSync(frontendIndexPath) ? 'yes' : 'no'} (${frontendIndexPath})`);
+  console.log('Health endpoints enabled: /health, /api/health');
 });
