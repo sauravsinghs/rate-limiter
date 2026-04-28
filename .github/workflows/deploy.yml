@@ -18,21 +18,32 @@ jobs:
           node-version: '18'
       
       - name: Install frontend dependencies
-        run: npm ci
+        run: cd frontend && npm ci
       
       - name: Install backend dependencies
         run: cd backend && npm ci
       
       - name: Build frontend
-        run: npm run build
+        run: cd frontend && npm run build
       
       - name: Test backend
         run: cd backend && npm test || echo "No tests configured yet"
 
+  deployment-test:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deployment smoke check (PR)
+        run: |
+          echo "Running deployment smoke checks for PR..."
+          echo "Add preview/deployment validation commands here."
+
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - uses: actions/checkout@v3
       

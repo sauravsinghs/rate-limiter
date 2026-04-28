@@ -1,5 +1,4 @@
 import type { Algorithm } from "../../services/api";
-import { ALGORITHM_LABELS, ALGORITHM_ORDER } from "./algorithmMeta";
 
 export interface DashboardConfigDraft {
   tb_capacity: number;

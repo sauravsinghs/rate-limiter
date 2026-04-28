@@ -1,10 +1,10 @@
+import type { SimulationStep } from "../../engine/types";
+import type { Algorithm, BucketStats, RequestStats } from "../../services/api";
 import BucketView from "../BucketView";
 import LeakyBucketView from "../LeakyBucketView";
 import RequestChart from "../RequestChart";
 import StatsPanel from "../StatsPanel";
 import WindowView from "../WindowView";
-import type { SimulationStep } from "../../engine/types";
-import type { Algorithm, BucketStats, RequestStats } from "../../services/api";
 import { ALGORITHM_BADGE_CLASSES, ALGORITHM_LABELS } from "./algorithmMeta";
 
 interface AlgorithmPanelProps {
@@ -14,9 +14,15 @@ interface AlgorithmPanelProps {
   lastRequestSuccess: boolean | null;
   retryAfter?: number;
   simulationStep: SimulationStep | null;
+  showRequestHistory?: boolean;
+  /** When false (e.g. Advanced View), Statistics are shown elsewhere so the panel omits this card. */
+  showStatistics?: boolean;
 }
 
-function getSimulationSummary(algorithm: Algorithm, step: SimulationStep | null): string {
+function getSimulationSummary(
+  algorithm: Algorithm,
+  step: SimulationStep | null,
+): string {
   if (!step) {
     return "Simulation waiting for first request";
   }
@@ -71,7 +77,9 @@ function renderCapacityCard(
 
   return (
     <LeakyBucketView
-      currentLevel={bucketStats.currentLevel ?? bucketStats.capacity - bucketStats.tokens}
+      currentLevel={
+        bucketStats.currentLevel ?? bucketStats.capacity - bucketStats.tokens
+      }
       capacity={bucketStats.capacity}
       leakRate={bucketStats.leakRate ?? bucketStats.refillRate}
       lastRequestSuccess={lastRequestSuccess}
@@ -96,44 +104,59 @@ export default function AlgorithmPanel({
   lastRequestSuccess,
   retryAfter,
   simulationStep,
+  showRequestHistory = true,
+  showStatistics = true,
 }: AlgorithmPanelProps) {
   return (
-    <div className="algo-panel">
+    <div
+      className={
+        showStatistics ? "algo-panel" : "algo-panel algo-panel--no-stats"
+      }
+      data-tutorial="algo-panel"
+    >
       <div className="algo-panel-header">
         <h2 className="algo-panel-title">{ALGORITHM_LABELS[algorithm]}</h2>
-        <span className={`algo-badge ${ALGORITHM_BADGE_CLASSES[algorithm]}`}>{ALGORITHM_LABELS[algorithm]}</span>
+        <span className={`algo-badge ${ALGORITHM_BADGE_CLASSES[algorithm]}`}>
+          {ALGORITHM_LABELS[algorithm]}
+        </span>
       </div>
 
-      <p className="algo-live-state">{getSimulationSummary(algorithm, simulationStep)}</p>
+      <p className="algo-live-state">
+        {getSimulationSummary(algorithm, simulationStep)}
+      </p>
 
-      <div className="card card-stats">
-        <h3>Statistics</h3>
-        {requestStats ? (
-          <StatsPanel
-            total={requestStats.total}
-            allowed={requestStats.allowed}
-            blocked={requestStats.blocked}
-            successRate={requestStats.successRate}
-            lastRequestSuccess={lastRequestSuccess}
-            retryAfter={retryAfter}
-          />
-        ) : (
-          <div className="loading-placeholder">
-            <div className="spinner" />
-            <p>Loading...</p>
-          </div>
-        )}
-      </div>
+      {showStatistics && (
+        <div className="card card-stats">
+          <h3>Statistics</h3>
+          {requestStats ? (
+            <StatsPanel
+              total={requestStats.total}
+              allowed={requestStats.allowed}
+              blocked={requestStats.blocked}
+              successRate={requestStats.successRate}
+              lastRequestSuccess={lastRequestSuccess}
+              retryAfter={retryAfter}
+            />
+          ) : (
+            <div className="loading-placeholder">
+              <div className="spinner" />
+              <p>Loading...</p>
+            </div>
+          )}
+        </div>
+      )}
 
-      <div className="card card-chart">
-        <h3>Request History</h3>
-        <RequestChart history={requestStats?.history ?? []} maxPoints={30} />
-      </div>
-
-      <div className="card card-capacity">
+      <div className="card card-capacity" data-tutorial="panel-capacity">
         <h3>{getCapacityTitle(algorithm)}</h3>
         {renderCapacityCard(algorithm, bucketStats, lastRequestSuccess)}
       </div>
+
+      {showRequestHistory && (
+        <div className="card card-chart" data-tutorial="panel-history">
+          <h3>Request History</h3>
+          <RequestChart history={requestStats?.history ?? []} maxPoints={30} />
+        </div>
+      )}
     </div>
   );
 }

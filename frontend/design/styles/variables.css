@@ -1,6 +1,14 @@
 /**
  * Design System Variables
  * Central source of truth for colors, typography, spacing, and effects
+ *
+ * Responsive breakpoints (reference — @media queries use literals):
+ * - 480px: small phones (stats stack, navbar density)
+ * - 720px: algorithm panel vertical strip only (dashboard single-panel grid areas)
+ * - 768px: tablets / fold — broad layout (nav step labels hide, simulation controls column, algo tabs wrap)
+ * - 1024px: Advanced View three-column workbench stacks to one column
+ * - 1200px: algorithm panel inner grid columns tweak
+ * - 1320px: main workbench layout stacks (code rails + algo comparison)
  */
 
 :root {
