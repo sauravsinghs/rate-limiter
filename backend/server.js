@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { TokenBucket } from './middleware/tokenBucket.js';
 import { SlidingWindowCounter } from './middleware/slidingWindowCounter.js';
 import { LeakyBucket } from './middleware/leakyBucket.js';
@@ -11,6 +14,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const frontendDistPath = path.join(__dirname, 'public');
+const frontendIndexPath = path.join(frontendDistPath, 'index.html');
 
 // Middleware
 const configuredOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
@@ -214,6 +221,18 @@ app.get('/health', (req, res) => {
     leakyBucket: globalLeakyBucket.getStats()
   });
 });
+
+// Serve built frontend when available (production container/runtime).
+if (fs.existsSync(frontendIndexPath)) {
+  app.use(express.static(frontendDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      next();
+      return;
+    }
+    res.sendFile(frontendIndexPath);
+  });
+}
 
 // Error handler for rate limiting (Token Bucket 429s)
 app.use((err, req, res, next) => {

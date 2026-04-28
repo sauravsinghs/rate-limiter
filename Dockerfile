@@ -25,13 +25,9 @@ COPY --from=backend-builder /app/backend ./backend
 # Copy frontend build
 COPY --from=frontend-builder /app/frontend/dist ./backend/public
 
-# Install serve for frontend
-RUN npm install -g serve
-
 # Expose ports
 EXPOSE 3001
-EXPOSE 3000
 
-# Start both services
+# Start backend (serves API + static frontend)
 WORKDIR /app/backend
-CMD ["sh", "-c", "node server.js & serve -s ./public -l 3000 & wait"]
+CMD ["node", "server.js"]

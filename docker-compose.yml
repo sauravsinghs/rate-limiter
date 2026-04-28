@@ -5,11 +5,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
-      - "3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - FRONTEND_URL=http://localhost:3000
+      - FRONTEND_URL=http://localhost:3001
       - BUCKET_CAPACITY=10
       - REFILL_RATE=1.0
     restart: unless-stopped
